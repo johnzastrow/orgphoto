@@ -35,7 +35,6 @@ Examples:
         # python photocopy.py -m yes -x no -j gif,png,jpg,mov,mp4 Z:\photosync target/
 """
 
-
 config.quiet = True
 
 logger = logging.getLogger(__name__)
@@ -53,6 +52,12 @@ def set_up_logging(arguments):
     else:
         level = logging.INFO  # Otherwise, set logging level to INFO
     logfile = os.path.join(destination_dir, "events.log")  # Define the log file path
+
+    # Here's the part where we create the target directory and event log if they don't already exist
+    if not os.path.exists(os.path.dirname(logfile)):
+        os.makedirs(os.path.dirname(logfile))
+    if not os.path.exists(logfile):
+        open(logfile, "a").close()
     logger.setLevel(level)  # Set the logging level for the logger
     ch = logging.FileHandler(logfile)  # Create a file handler to write logs to the file
     ch.setLevel(level)  # Set the logging level for the file handler
@@ -163,7 +168,9 @@ def moveFile(folder, filename):
         ):  # Select by
             if not os.path.isdir(destf):  # Create subdir to move/copy
                 os.makedirs(destf)
-                logger.info("created new destination subdir: " + destf)
+                logger.info(
+                    f"created new destination subdir: {destf}"
+                )  # now we log if we create the dest subdir
             if not os.path.exists(os.path.join(destf, filename)):
                 if actMove == "yes":
                     shutil.move(fullpath, destf)

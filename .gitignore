@@ -35,3 +35,4 @@ nosetests.xml
 .project
 .pydevproject
 /photocopy/venv
+op/op2.py
