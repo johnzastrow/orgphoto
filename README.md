@@ -1,4 +1,4 @@
-photocopy
+photocopy (becoming orgphoto or just op)
 =========
 
 A script to archive photos off a camera or directory to a directory named by file date. 
@@ -6,11 +6,11 @@ It will prefer to use the EXIF date in the file. If not present it will skip fil
 (do not skip files without EXIF date) is passed in which case it will use file system creation date. All operations
 are logged into the target directory in a text file. 
 
-Note this is a major rewrite of the upstream project. TODO: It should be decoupled from it.
+Note this is a major rewrite of the upstream project skorokithakis/photocopy and this code is not downstreamed from it any longer.
 
 Installation
 ------------
-
+pip 
 Just run:
 
     1. Clone down the repo, or just download `photocopy.py`
