@@ -55,7 +55,7 @@ Examples of log entries
 
 #### Plain info logging
 
-![Plain log](../main/doc/log01b.png)
+![Plain log](../main/doc/log1b.png)
 
 
 #### Debug, verbose logging
