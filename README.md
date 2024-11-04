@@ -50,6 +50,8 @@ and it will copy the photos to directories called "2014_03_12" by default.
 See the source file for more examples.
 
 
+https://pypi.org/project/auto-py-to-exe/
+
 Examples of log entries
 ------------------------
 
