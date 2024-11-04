@@ -38,11 +38,13 @@ Examples:
 config.quiet = True
 
 logger = logging.getLogger(__name__)
-
+myversion = "v. 1.2 Farfengruven"
 destination_dir = ""
 extList = []
 actMove = "no"
 exifOnly = ""
+running_file = str(__file__)  # what is this file and where is it running
+print(str(running_file) + "\n" + "is the file")
 
 
 def set_up_logging(arguments):
@@ -109,6 +111,7 @@ def main(args=None):
     # Job started
     logger.info(
         10 * "-"
+        + myversion  # log this script details. Not working at the moment
         + "++ Started: "
         + datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
     )
