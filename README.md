@@ -1,4 +1,4 @@
-photocopy (becoming orgphoto or just op)
+orgphoto (op)
 =========
 
 A script to archive photos off a camera or directory to a directory named by file date. 
