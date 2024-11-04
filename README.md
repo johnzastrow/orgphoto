@@ -51,7 +51,7 @@ See the source file for more examples.
 
 Usage - Windows .exe
 -----
-Using this project https://pypi.org/project/auto-py-to-exe/ it is easy to generate a Windows .exe that works EXACTLY like the script without the hassle of setting up Python where you want to run it.
+Using this project https://pypi.org/project/auto-py-to-exe/ it is easy to generate a Windows .exe that works EXACTLY like the script without the hassle of setting up Python where you want to run it. There is a copy of the .exe of some vintage here in this repo.
 
 
 
