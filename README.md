@@ -21,9 +21,9 @@ Just run:
 You're ready to use it!
 
 
-Usage
+Usage - Python script
 -----
-Photocopy recursively reads the EXIF data from images and other file types (see below) in source directory and copies the files to a
+orgphoto (op) recursively reads the EXIF data from images and other file types (see below) in source directory and copies the files to a
 specified target directory with subdirectories for the creation dates of the files. It does not rename files. A use case is that 
 you have an SD card from your camera, or a folder from a remote syncing service, and want to copy all the images/videos into specific 
 directories by day.
@@ -49,8 +49,11 @@ You run it with:
 and it will copy the photos to directories called "2014_03_12" by default.
 See the source file for more examples.
 
+Usage - Windows .exe
+-----
+Using this project https://pypi.org/project/auto-py-to-exe/ it is easy to generate a Windows .exe that works EXACTLY like the script without the hassle of setting up Python where you want to run it.
 
-https://pypi.org/project/auto-py-to-exe/
+
 
 Examples of log entries
 ------------------------
@@ -69,7 +72,7 @@ Examples of log entries
  File Formats
  -------------
 
-This version of photocopy uses the [https://pypi.org/project/hachoir/](hachoir) software to extract EXIF metadata. Hachoir supports the following 
+This version of orgphoto (op) uses the [https://pypi.org/project/hachoir/](hachoir) software to extract EXIF metadata. Hachoir supports the following 
 file formats as of version 3.3.0 in November 2024.
 
 #### Total: 33 file formats, from https://hachoir.readthedocs.io/en/latest/metadata.html#supported-file-formats
