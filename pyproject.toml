@@ -1,0 +1,10 @@
+[project]
+name = "orgphoto"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "docopt>=0.6.2",
+    "hachoir>=3.3.0",
+]
