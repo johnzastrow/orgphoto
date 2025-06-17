@@ -44,6 +44,7 @@ USAGE EXAMPLES:
 See --help for all options.
 """
 
+# Standard library imports
 import sys
 import datetime
 import logging
@@ -52,23 +53,39 @@ import argparse
 from pathlib import Path
 import os
 
+# Third-party library imports for metadata extraction
 from hachoir.parser import createParser
 from hachoir.metadata import extractMetadata
 from hachoir.core import config
 
-config.quiet = True  # Suppress hachoir warnings
+# Suppress hachoir warnings to keep console output clean
+config.quiet = True
 
-myversion = "v. 1.2 Farfengruven"
+# Script version information
+myversion = "v. 1.3 Cheesy Dibbles 2025-06-17"
 
 
 def set_up_logging(destination_dir: Path, verbose: bool):
     """
     Set up logging to a file in the destination directory.
-    Logging level is set based on the --verbose flag.
-    Returns a logger instance.
+    
+    Args:
+        destination_dir (Path): Directory where log file will be created
+        verbose (bool): Whether to enable verbose (DEBUG) logging
+    
+    Returns:
+        logging.Logger: Configured logger instance
+    
+    This function creates a logger that writes to a file named 'events.log'
+    in the destination directory. The logging level is set based on the verbose flag.
     """
+    # Create a logger with the module name
     logger = logging.getLogger(__name__)
+    
+    # Set logging level based on verbose flag
     level = logging.DEBUG if verbose else logging.INFO
+    
+    # Define log file path in the destination directory
     logfile = destination_dir / "events.log"
 
     # Ensure the log directory exists
@@ -77,6 +94,7 @@ def set_up_logging(destination_dir: Path, verbose: bool):
     except Exception as e:
         print(f"Failed to create log directory: {e}")
         sys.exit(1)
+        
     # Ensure the log file exists
     try:
         if not logfile.exists():
@@ -84,58 +102,97 @@ def set_up_logging(destination_dir: Path, verbose: bool):
     except Exception as e:
         print(f"Failed to create log file: {e}")
         sys.exit(1)
+        
+    # Configure the logger
     logger.setLevel(level)
+    
+    # Create a file handler for the log file
     ch = logging.FileHandler(logfile, encoding="utf-8")
     ch.setLevel(level)
+    
+    # Define a simple formatter that just prints the message
     formatter = logging.Formatter("%(message)s")
     ch.setFormatter(formatter)
+    
+    # Add the handler to the logger if it doesn't already have handlers
     if not logger.handlers:
         logger.addHandler(ch)
+        
     return logger
 
 
 def get_created_date(filename: Path, logger):
     """
-    Attempt to extract the creation date from the file's metadata (EXIF).
-    Returns a datetime object if successful, otherwise None.
+    Attempt to extract the creation date from the file's EXIF metadata.
+    
+    Args:
+        filename (Path): Path to the file to extract metadata from
+        logger (logging.Logger): Logger for recording issues
+    
+    Returns:
+        datetime.datetime or None: Creation date if found, otherwise None
+    
+    This function uses hachoir to parse the file and extract EXIF metadata.
+    It specifically looks for the 'creation_date' metadata field.
     """
     created_date = None
+    
+    # Try to create a parser for the file
     try:
         parser = createParser(str(filename))
     except Exception as e:
         logger.debug(f"Failed to create parser for {filename}: {e}")
         return created_date
+        
+    # If parser creation failed, return None
     if not parser:
         logger.debug(f"Unable to parse file for created date: {filename}")
         return created_date
 
+    # Extract metadata using the parser
     try:
-        with parser:
+        with parser:  # Ensure parser is properly closed
             try:
                 metadata = extractMetadata(parser)
             except Exception as err:
                 logger.debug(f"Metadata extraction error for {filename}: {err}")
                 metadata = None
+                
+        # Check if metadata was extracted successfully
         if not metadata:
             logger.debug(f"Unable to extract metadata for {filename}")
         else:
+            # Try to get creation date from metadata
             cd = metadata.getValues("creation_date")
             if len(cd) > 0:
                 created_date = cd[0]
     except Exception as e:
         logger.debug(f"Error during metadata extraction for {filename}: {e}")
+        
     return created_date
 
 
 def validate_args(source_dir: Path, destination_dir: Path, logger):
     """
-    Validate that source and destination directories are not the same,
-    and that the source exists before proceeding.
-    Exits the program if validation fails.
+    Validate command line arguments for directory paths.
+    
+    Args:
+        source_dir (Path): Source directory path
+        destination_dir (Path): Destination directory path
+        logger (logging.Logger): Logger for recording errors
+    
+    Exits:
+        If source directory doesn't exist or source and destination are the same
+    
+    This function ensures that the source directory exists and that source
+    and destination directories are not the same to prevent potential data loss.
     """
+    # Check if source directory exists
     if not source_dir.exists() or not source_dir.is_dir():
         logger.error(f"Source directory does not exist: {source_dir}")
         sys.exit(1)
+        
+    # Check if source and destination are the same
     if source_dir.resolve() == destination_dir.resolve():
         logger.error("Source and destination directories must not be the same.")
         sys.exit(1)
@@ -143,13 +200,22 @@ def validate_args(source_dir: Path, destination_dir: Path, logger):
 
 def normalize_extensions(ext_string: str):
     """
-    Normalize extensions to lowercase, strip whitespace, and ensure they start with a dot.
-    Returns a list of normalized extensions.
+    Normalize file extensions to a consistent format.
+    
+    Args:
+        ext_string (str): Comma-separated list of file extensions
+    
+    Returns:
+        list: List of normalized extensions, each starting with a dot
+    
+    This function processes a comma-separated string of extensions and
+    ensures they are lowercase, without leading spaces, and prefixed with a dot.
     """
+    # Process each extension in the comma-separated list
     return [
-        "." + ext.strip().lower().lstrip(".")
-        for ext in ext_string.split(",")
-        if ext.strip()
+        "." + ext.strip().lower().lstrip(".")  # Ensure lowercase and leading dot
+        for ext in ext_string.split(",")       # Split by comma
+        if ext.strip()                         # Skip empty extensions
     ]
 
 
@@ -163,17 +229,38 @@ def recursive_walk(
     dryrun=False,
 ):
     """
-    Walk through the folder and process files with matching extensions.
-    Logs progress and summary statistics.
+    Recursively walk through directories and process matching files.
+    
+    Args:
+        source_dir (Path): Source directory to scan
+        destination_dir (Path): Destination directory for processed files
+        ext_list (list): List of file extensions to process
+        action (str): Action to perform ("move" or "copy")
+        exif_only (str): How to handle files without EXIF data
+        logger (logging.Logger): Logger for recording operations
+        dryrun (bool): Whether to simulate operations without making changes
+    
+    This function traverses all directories under source_dir, identifying files
+    with matching extensions and processing them according to the specified action.
+    It keeps track of statistics and reports progress.
     """
+    # Initialize counters for statistics
     total_files = 0
     processed_files = 0
+    
+    # Walk through all directories and files recursively
     for folderName, _, filenames in os.walk(source_dir):
         logger.info(f"Source Folder: {folderName}")
+        
+        # Process each file in the current folder
         for filename in filenames:
             file_extension = Path(filename).suffix.lower()
+            
+            # Check if file extension matches any in our list
             if file_extension in ext_list:
                 total_files += 1
+                
+                # Process the file and update count if successful
                 processed_files += moveFile(
                     Path(folderName),
                     filename,
@@ -183,9 +270,12 @@ def recursive_walk(
                     logger,
                     dryrun,
                 )
-                # Progress reporting every 100 files processed
+                
+                # Report progress periodically
                 if processed_files % 100 == 0:
                     logger.info(f"Processed {processed_files} files so far...")
+                    
+    # Log final statistics
     logger.info(f"Total files matched: {total_files}, processed: {processed_files}")
 
 
@@ -200,47 +290,78 @@ def moveFile(
 ):
     """
     Move or copy a file to the destination directory, organizing by date.
-    Uses EXIF creation date if available, otherwise uses file system date.
-    Handles skipping or processing files based on exifOnly option.
-    Adds robust error handling for file and directory operations.
-    Returns 1 if file was processed, 0 otherwise.
+    
+    Args:
+        folder (Path): Directory containing the file
+        filename (str): Name of the file to process
+        destination_dir (Path): Base destination directory
+        action (str): "move" or "copy"
+        exif_only (str): How to handle files without EXIF data
+        logger (logging.Logger): Logger for recording operations
+        dryrun (bool): Whether to simulate operations without making changes
+    
+    Returns:
+        int: 1 if file was processed, 0 otherwise
+    
+    This function extracts the creation date from the file (either from EXIF
+    or file system), creates a destination folder based on the date, and
+    then copies or moves the file to that destination.
     """
+    # Construct full path to the file
     fullpath = folder / filename
+    
+    # Try to get creation date from EXIF metadata
     try:
         cd = get_created_date(fullpath, logger)
     except Exception as e:
         logger.error(f"Error extracting date from {fullpath}: {e}")
         return 0
-    comment = " " * 9  # Used for logging if EXIF is missing
+        
+    # Default comment indicates EXIF metadata is present
+    comment = " " * 9
+    
+    # If no EXIF data found, potentially fall back to file system date
     if not cd:
         # If no EXIF, fallback to file system modification time
         try:
             cd = datetime.datetime.fromtimestamp(fullpath.stat().st_mtime)
-            comment = " no EXIF "
+            comment = " no EXIF "  # Mark files without EXIF data
         except Exception as e:
             logger.error(f"Failed to get file system date for {fullpath}: {e}")
             return 0
+            
+    # Format the date for destination folder naming
     try:
         created_date = cd.strftime("%Y_%m_%d")
     except Exception as e:
         logger.error(f"Failed to format date for {fullpath}: {e}")
         return 0
+        
+    # Calculate space for log formatting
     space = 40 - len(filename)
     if space <= 0:
         space = 4
+        
+    # Define destination folder based on date
     destf = destination_dir / created_date
 
+    # Handle files based on EXIF status and user preferences
     # exifOnly logic: skip, only process, or fallback for files without EXIF
     if not comment.isspace() and exif_only == "yes":
+        # Skip files without EXIF if exifOnly is "yes"
         logger.info(f"  {filename}  {comment:>{space}}    skipped")
         return 0
     else:
+        # Determine action label for logging
         flagM = "moved" if action == "move" else "copied"
+        
+        # Process file based on exifOnly setting
         if (
-            exif_only == "no"
-            or (exif_only == "yes" and comment.isspace())
-            or (exif_only == "fs" and not comment.isspace())
+            exif_only == "no"  # Process all files
+            or (exif_only == "yes" and comment.isspace())  # Only files with EXIF
+            or (exif_only == "fs" and not comment.isspace())  # Only files without EXIF
         ):
+            # Create destination directory if it doesn't exist
             try:
                 if not destf.exists():
                     if not dryrun:
@@ -249,66 +370,89 @@ def moveFile(
             except Exception as e:
                 logger.error(f"Failed to create destination subdir {destf}: {e}")
                 return 0
+                
+            # Define full destination file path
             dest_file_path = destf / filename
+            
+            # Only process if destination file doesn't already exist
             if not dest_file_path.exists():
                 try:
+                    # Perform the actual move or copy operation
                     if not dryrun:
                         if action == "move":
                             shutil.move(str(fullpath), str(destf))
                         else:
                             shutil.copy2(str(fullpath), str(destf))
+                            
+                    # Format timestamp in MariaDB format (YYYY-MM-DD HH:MM:SS)
+                    timestamp = cd.strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    # Log the operation
                     logger.info(
-                        f"  {filename}  {comment:>{space}}  {str(cd)} {flagM:>3} {destf}"
+                        f"  {filename}  {comment:>{space}}  {timestamp} {flagM:>3} {destf}"
                         + (" [DRY RUN]" if dryrun else "")
                     )
                 except Exception as e:
                     logger.error(f"Failed to {flagM} {fullpath} to {destf}: {e}")
                     return 0
             else:
+                # Log if file already exists in destination
                 logger.info("  " + filename + " already exists in " + str(destf))
             return 1
         elif exif_only == "fs" and comment.isspace():
+            # Skip files with EXIF when exifOnly is "fs" (only process files without EXIF)
             logger.info(f"  {filename}  {comment:>{space}}    skipped")
             return 0
     return 0
 
 
 def print_examples():
-    """Print usage examples to the user."""
-    examples = """
-USAGE EXAMPLES:
----------------
-1. Move JPG files from source to destination, organizing by EXIF date, skipping files without EXIF:
-    python op.py -m -j jpg Z:\\photosync target/
-
-2. Copy various file types, using file system date if EXIF is missing:
-    python op.py -c -j gif,png,jpg,mov,mp4 -x no Z:\\photosync target/
-
-3. Dry run: Simulate moving files without making changes:
-    python op.py -m -d -j jpg Z:\\photosync target/
-
-4. Only process files that do not have EXIF data (using file system date):
-    python op.py -c -x fs -j jpg Z:\\photosync target/
-
-5. Move PNG and JPEG files, verbose logging enabled:
-    python op.py -m -v -j png,jpeg Z:\\photosync target/
-
-6. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
     """
+    Print usage examples to the user.
+    
+    This function extracts and displays the examples section from the module's docstring.
+    It's used when the --examples flag is provided.
+    """
+    # Extract the examples section from the module docstring
+    doc_lines = __doc__.split('\n')
+    examples_start = doc_lines.index("USAGE EXAMPLES:") 
+    examples_end = next((i for i, line in enumerate(doc_lines[examples_start:], examples_start) 
+                         if line.startswith("See --help")), len(doc_lines))
+    
+    examples = '\n'.join(doc_lines[examples_start:examples_end+1])
     print(examples)
 
 
 def parse_arguments(args=None):
     """
     Parse command line arguments using argparse.
-    Returns parsed arguments.
+    
+    Args:
+        args (list, optional): Command line arguments. Defaults to None.
+    
+    Returns:
+        argparse.Namespace: Parsed arguments
+    
+    This function handles command line argument parsing, including special
+    handling for the --examples flag which can be used without required positional arguments.
     """
+    # First check if --examples is in the args
+    if args is None:
+        args = sys.argv[1:]
+    
+    # Special handling for --examples flag to bypass required arguments
+    if "--examples" in args:
+        print_examples()
+        sys.exit(0)
+    
+    # Regular argument parsing
     parser = argparse.ArgumentParser(
         description="Organize and copy/move photos and videos by date",
         epilog="If neither --move nor --copy is specified, the script will prompt to run in dryrun mode simulating moving files.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     
+    # Required positional arguments
     parser.add_argument(
         "source_dir",
         help="Source directory containing images/videos to organize",
@@ -321,6 +465,7 @@ def parse_arguments(args=None):
         metavar="DEST_DIR",
     )
     
+    # Create a mutually exclusive group for move/copy options
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "-m", "--move",
@@ -334,6 +479,7 @@ def parse_arguments(args=None):
         help="Copy files (cannot be used with --move)",
     )
     
+    # Other optional arguments
     parser.add_argument(
         "-j", "--extensions",
         default="jpeg,jpg",
@@ -368,21 +514,20 @@ def parse_arguments(args=None):
     )
     
     # Parse the arguments
-    args = parser.parse_args(args)
-    
-    # If examples flag is set, print examples and exit
-    if args.examples:
-        print_examples()
-        sys.exit(0)
-        
-    return args
+    parsed_args = parser.parse_args(args)
+    return parsed_args
 
 
 def main(args=None):
     """
     Main entry point for the script.
-    Parses arguments, sets up logging, validates arguments, and starts processing files.
-    Handles mutually exclusive move/copy flags and prompts user if neither is specified.
+    
+    Args:
+        args (list, optional): Command line arguments. Defaults to None.
+    
+    This function orchestrates the entire process: parsing arguments,
+    setting up logging, validating directories, and initiating the file processing.
+    It also handles user interaction when required actions aren't specified.
     """
     # Parse command line arguments
     parsed_args = parse_arguments(args)
@@ -396,6 +541,7 @@ def main(args=None):
     dryrun = parsed_args.dryrun
     action = None
 
+    # Set action based on flags
     if move_flag:
         action = "move"
     elif copy_flag:
@@ -419,17 +565,16 @@ def main(args=None):
             print("No action selected. Exiting.")
             sys.exit(1)
 
+    # Convert string paths to Path objects and resolve them
     source_dir = Path(parsed_args.source_dir).expanduser().resolve()
     destination_dir = Path(parsed_args.destination_dir).expanduser().resolve()
 
+    # Set up logging to a file in the destination directory
     logger = set_up_logging(destination_dir, parsed_args.verbose)
 
-    logger.info(
-        10 * "-"
-        + myversion
-        + "++ Started: "
-        + datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
-    )
+    # Log script start with MariaDB TIMESTAMP format (YYYY-MM-DD HH:MM:SS)
+    start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    logger.info(f"{10 * '-'}{myversion}++ Started: {start_time}")
     logger.debug(f"options: {vars(parsed_args)}")
 
     # Validate source and destination directories
@@ -449,9 +594,11 @@ def main(args=None):
         source_dir, destination_dir, ext_list, action, parsed_args.exifOnly, logger, dryrun
     )
 
-    logger.info(
-        10 * "_" + "** Ended: " + datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
-    )
+    # Log script end with MariaDB TIMESTAMP format
+    end_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    logger.info(f"{10 * '_'}** Ended: {end_time}")
+    
+    # Ensure all log messages are written
     logging.shutdown()
 
 
