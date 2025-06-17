@@ -65,38 +65,42 @@ USAGE EXAMPLES:
 ---------------
 
 1. Move JPG files from source to destination, organizing by EXIF date, skipping files without EXIF:
-   python op.py -m -j jpg Z:\\photosync target/
+   
+   `python op.py -m -j jpg Z:\\photosync target/`
 
 2. Copy various file types, using file system date if EXIF is missing:
-   python op.py -c -x no -j gif,png,jpg,mov,mp4 Z:\\photosync target/
+
+   `python op.py -c -x no -j gif,png,jpg,mov,mp4 Z:\\photosync target/`
 
 3. Dry run: Simulate moving files without making changes:
-   python op.py -m -d -j jpg Z:\\photosync target/
+
+  ` python op.py -m -d -j jpg Z:\\photosync target/`
 
 4. Only process files that do not have EXIF data (using file system date):
-   python op.py -c -x fs -j jpg Z:\\photosync target/
+
+   `python op.py -c -x fs -j jpg Z:\\photosync target/`
 
 5. Move PNG and JPEG files, verbose logging enabled:
-   python op.py -m -v -j png,jpeg Z:\\photosync target/
 
-6. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
+   `python op.py -m -v -j png,jpeg Z:\\photosync target/`
 
-See --help for all options.
+*If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
+
+See `--help` for all options.
 
 INSTALLATION
 ------------
 **<u>pip</u>** 
 Just run:
 
-    1. Clone down the repo, or just download `op.py`
-    2. pip install docopt
-    3. pip install hachoir
-    4. Then execute the script using python as in # python op.py
+    1. Clone the repo, or just download `op.py`
+    2. pip install hachoir
+    3. Then execute the script using python as in # python op.py
 
-**<u>uv</u>** - Thank you uv!
+**<u>uv</u>** - Thank you uv! [uv installation here](https://docs.astral.sh/uv/getting-started/installation/)
 
-    1. Clone down the repo (you'll also want the supporting files)
-    2. make sure uv is installed. It will handle dependencies 
+    1. Clone the repo (you'll also want the supporting files)
+    2. Make sure uv is installed. It will handle dependencies 
     3. Then execute the script using python as in # uv run op.py
 
 Usage - Windows .exe
