@@ -1,6 +1,8 @@
 orgphoto (op)
 =========
 
+![logo](doc/logo.png)
+
 SUMMARY:
 --------
 
