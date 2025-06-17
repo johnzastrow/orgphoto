@@ -30,6 +30,17 @@ USAGE EXAMPLES:
 2. Copy various file types, using file system date if EXIF is missing:
     python photocopy.py -c -x no -j gif,png,jpg,mov,mp4 Z:\photosync target/
 
+3. Dry run: Simulate moving files without making changes:
+    python photocopy.py -m -d -j jpg Z:\photosync target/
+
+4. Only process files that do not have EXIF data (using file system date):
+    python photocopy.py -c -x fs -j jpg Z:\photosync target/
+
+5. Move PNG and JPEG files, verbose logging enabled:
+    python photocopy.py -m -v -j png,jpeg Z:\photosync target/
+
+6. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
+
 See --help for all options.
 """
 
@@ -70,6 +81,17 @@ Examples:
         named YYYY_MM_DD using the EXIF Creation Date in the files. File without EXIF date will use the file
         system creation date to name target folders. Log everything.
         # python photocopy.py -c -x no -j gif,png,jpg,mov,mp4 Z:\photosync target/
+
+    3. Dry run: Simulate moving files without making changes:
+        # python photocopy.py -m -d -j jpg Z:\photosync target/
+
+    4. Only process files that do not have EXIF data (using file system date):
+        # python photocopy.py -c -x fs -j jpg Z:\photosync target/
+
+    5. Move PNG and JPEG files, verbose logging enabled:
+        # python photocopy.py -m -v -j png,jpeg Z:\photosync target/
+
+    6. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
 """
 
 config.quiet = True  # Suppress hachoir warnings
