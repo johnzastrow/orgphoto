@@ -85,18 +85,17 @@
        x="407.68512"
        y="84.337357" />
     <rect
-       style="fill:#9826d2;fill-opacity:1;stroke:#9826d2;stroke-width:7.584;stroke-linecap:round;stroke-linejoin:round;stroke-opacity:1"
+       style="fill:#e99d2b;fill-opacity:1;stroke:none;stroke-width:9.86128;stroke-linecap:round;stroke-linejoin:round;stroke-opacity:1"
        id="rect4"
        width="292.59708"
-       height="85.72908"
-       x="464.05524"
-       y="290.73337" />
+       height="144.94331"
+       x="458.05524"
+       y="263.12625" />
     <path
        id="path4"
-       style="fill:#9826d2;stroke:#9826d2;stroke-width:7.584;stroke-linecap:round;stroke-linejoin:round"
-       inkscape:transform-center-x="-36.631954"
-       inkscape:transform-center-y="0.9410147"
-       transform="rotate(0.64720668,33391.887,-959.40914)"
-       d="M 666.26403,846.10868 660.42157,568.06683 904.1341,702.02804 Z" />
+       style="fill:#e99d2b;fill-opacity:1;stroke:none;stroke-width:9.12228;stroke-linecap:round;stroke-linejoin:round;stroke-opacity:1"
+       inkscape:transform-center-x="-36.631955"
+       inkscape:transform-center-y="1.361465"
+       d="m 647.95736,536.76916 -2.70142,-402.3425 242.1838,197.78644 z" />
   </g>
 </svg>
