@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 r"""
-photocopy.py - Organize and copy/move photos and videos by date
+op.py - Organize and copy/move photos and videos by date
 
 SUMMARY:
 --------

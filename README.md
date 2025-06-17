@@ -2,9 +2,11 @@ orgphoto (op)
 =========
 
 A script to archive photos off a camera or directory to a directory named by file date. 
-It will prefer to use the EXIF date in the file. If not present it will skip file unless the flag `-x no` 
+
+It will prefer to use the EXIF date in the file. If not present it will skip file unless the flag `-x no`
+
 (do not skip files without EXIF date) is passed in which case it will use file system creation date. All operations
-are logged into the target directory in a text file. 
+are logged into the target directory in a text file.
 
 Note this is a major rewrite of the upstream project skorokithakis/photocopy and this code is not downstreamed from it any longer.
 
@@ -20,13 +22,50 @@ Just run:
 
 You're ready to use it!
 
+SUMMARY:
+--------
+This script scans a source directory (recursively) for image and video files with specified extensions,
+extracts their creation date (preferably from EXIF metadata, or falls back to the file system date),
+and copies or moves them into subfolders in a destination directory, organized by date (YYYY_MM_DD).
+
+FEATURES:
+---------
+- Supports any file extension recognized by hachoir (default: jpeg, jpg).
+- Recursively processes all subfolders in the source directory.
+- Uses EXIF metadata for creation date if available; otherwise, uses the file system's modification date.
+- Can skip, only process, or fallback to file system date for files without EXIF metadata (configurable).
+- Optionally moves files instead of copying.
+- Dry run mode: simulate actions without making changes.
+- Progress reporting and detailed logging to a file in the destination directory.
+- Robust error handling for file operations, directory creation, and metadata extraction.
+- Command-line interface with flexible options using docopt.
+- Uses pathlib for modern, robust path handling.
+
+USAGE EXAMPLES:
+---------------
+1. Move JPG files from source to destination, organizing by EXIF date, skipping files without EXIF:
+    python photocopy.py -m -j jpg Z:\\photosync target/
+
+2. Copy various file types, using file system date if EXIF is missing:
+    python photocopy.py -c -x no -j gif,png,jpg,mov,mp4 Z:\\photosync target/
+
+3. Dry run: Simulate moving files without making changes:
+    python photocopy.py -m -d -j jpg Z:\\photosync target/
+
+4. Only process files that do not have EXIF data (using file system date):
+    python photocopy.py -c -x fs -j jpg Z:\\photosync target/
+
+5. Move PNG and JPEG files, verbose logging enabled:
+    python photocopy.py -m -v -j png,jpeg Z:\\photosync target/
+
+6. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
+
+See --help for all options.
+
 
 Usage - Python script
 -----
-orgphoto (op) recursively reads the EXIF data from images and other file types (see below) in source directory and copies the files to a
-specified target directory with subdirectories for the creation dates of the files. It does not rename files. A use case is that 
-you have an SD card from your camera, or a folder from a remote syncing service, and want to copy all the images/videos into specific 
-directories by day.
+orgphoto (op) recursively reads the EXIF data from images and 
 
 You run it with:
 
@@ -40,7 +79,7 @@ You run it with:
        
         python op.py -j jpg Z:\photosync Z:\target
         
-2. More complex. Move (-m yes) files by extensions (-j gif,png,jpg,mov,mp4) shown from source (Z:\photosync) to target into folders   
+1. More complex. Move (-m yes) files by extensions (-j gif,png,jpg,mov,mp4) shown from source (Z:\photosync) to target into folders   
         named YYYY_MM_DD using the EXIF Creation Date in the files. File without EXIF date will use the file
         system creation date (-x no -- means do not skip) to name target folders. Log everything.
         
