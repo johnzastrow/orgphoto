@@ -19,25 +19,25 @@ FEATURES:
 - Dry run mode: simulate actions without making changes.
 - Progress reporting and detailed logging to a file in the destination directory.
 - Robust error handling for file operations, directory creation, and metadata extraction.
-- Command-line interface with flexible options using docopt.
+- Command-line interface with flexible options using argparse.
 - Uses pathlib for modern, robust path handling.
 
 USAGE EXAMPLES:
 ---------------
 1. Move JPG files from source to destination, organizing by EXIF date, skipping files without EXIF:
-    python photocopy.py -m -j jpg Z:\\photosync target/
+    python op.py -m -j jpg Z:\\photosync target/
 
 2. Copy various file types, using file system date if EXIF is missing:
-    python photocopy.py -c -x no -j gif,png,jpg,mov,mp4 Z:\\photosync target/
+    python op.py -c -j gif,png,jpg,mov,mp4 -x no Z:\\photosync target/
 
 3. Dry run: Simulate moving files without making changes:
-    python photocopy.py -m -d -j jpg Z:\\photosync target/
+    python op.py -m -d -j jpg Z:\\photosync target/
 
 4. Only process files that do not have EXIF data (using file system date):
-    python photocopy.py -c -x fs -j jpg Z:\\photosync target/
+    python op.py -c -x fs -j jpg Z:\\photosync target/
 
 5. Move PNG and JPEG files, verbose logging enabled:
-    python photocopy.py -m -v -j png,jpeg Z:\\photosync target/
+    python op.py -m -v -j png,jpeg Z:\\photosync target/
 
 6. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
 
@@ -48,50 +48,13 @@ import sys
 import datetime
 import logging
 import shutil
+import argparse
 from pathlib import Path
 import os
 
-from docopt import docopt
 from hachoir.parser import createParser
 from hachoir.metadata import extractMetadata
 from hachoir.core import config
-
-# Usage string for docopt, describes how to use the script and its options
-usage = """Usage:
-  photocopy.py [options] <source_dir> <destination_dir>
-
-Options:
-  -h --help                Show this help and exit.
-  -j --extense=str         Extension list - comma separated [default: jpeg,jpg]. Supports all extensions of hachoir
-  -m --move                Move files (cannot be used with --copy)
-  -c --copy                Copy files (cannot be used with --move)
-  -v --verbose             Talk more.
-  -x --exifOnly=str        skip file processing if no EXIF (--exifOnly =yes)
-                           or process files with no EXIF (--exifOnly =no)
-                           or Only process files with no EXIF (--exifOnly =fs) [default: yes]
-  -d --dryrun              Dry run mode: simulate actions, do not move/copy files.
-"""
-
-examples = """
-USAGE EXAMPLES:
----------------
-1. Move JPG files from source to destination, organizing by EXIF date, skipping files without EXIF:
-    python photocopy.py -m -j jpg Z:\\photosync target/
-
-2. Copy various file types, using file system date if EXIF is missing:
-    python photocopy.py -c -x no -j gif,png,jpg,mov,mp4 Z:\\photosync target/
-
-3. Dry run: Simulate moving files without making changes:
-    python photocopy.py -m -d -j jpg Z:\\photosync target/
-
-4. Only process files that do not have EXIF data (using file system date):
-    python photocopy.py -c -x fs -j jpg Z:\\photosync target/
-
-5. Move PNG and JPEG files, verbose logging enabled:
-    python photocopy.py -m -v -j png,jpeg Z:\\photosync target/
-
-6. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
-"""
 
 config.quiet = True  # Suppress hachoir warnings
 
@@ -310,10 +273,109 @@ def moveFile(
     return 0
 
 
-def print_usage_and_examples():
-    """Print usage and examples to the user."""
-    print(usage)
+def print_examples():
+    """Print usage examples to the user."""
+    examples = """
+USAGE EXAMPLES:
+---------------
+1. Move JPG files from source to destination, organizing by EXIF date, skipping files without EXIF:
+    python op.py -m -j jpg Z:\\photosync target/
+
+2. Copy various file types, using file system date if EXIF is missing:
+    python op.py -c -j gif,png,jpg,mov,mp4 -x no Z:\\photosync target/
+
+3. Dry run: Simulate moving files without making changes:
+    python op.py -m -d -j jpg Z:\\photosync target/
+
+4. Only process files that do not have EXIF data (using file system date):
+    python op.py -c -x fs -j jpg Z:\\photosync target/
+
+5. Move PNG and JPEG files, verbose logging enabled:
+    python op.py -m -v -j png,jpeg Z:\\photosync target/
+
+6. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
+    """
     print(examples)
+
+
+def parse_arguments(args=None):
+    """
+    Parse command line arguments using argparse.
+    Returns parsed arguments.
+    """
+    parser = argparse.ArgumentParser(
+        description="Organize and copy/move photos and videos by date",
+        epilog="If neither --move nor --copy is specified, the script will prompt to run in dryrun mode simulating moving files.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    
+    parser.add_argument(
+        "source_dir",
+        help="Source directory containing images/videos to organize",
+        metavar="SOURCE_DIR",
+    )
+    
+    parser.add_argument(
+        "destination_dir",
+        help="Destination directory where organized files will be placed",
+        metavar="DEST_DIR",
+    )
+    
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "-m", "--move",
+        action="store_true",
+        help="Move files (cannot be used with --copy)",
+    )
+    
+    group.add_argument(
+        "-c", "--copy",
+        action="store_true",
+        help="Copy files (cannot be used with --move)",
+    )
+    
+    parser.add_argument(
+        "-j", "--extensions",
+        default="jpeg,jpg",
+        help="Extension list - comma separated [default: jpeg,jpg]. Supports all extensions of hachoir",
+        metavar="EXT",
+        dest="extense",
+    )
+    
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Talk more",
+    )
+    
+    parser.add_argument(
+        "-x", "--exifOnly",
+        choices=["yes", "no", "fs"],
+        default="yes",
+        help="'yes': skip files with no EXIF, 'no': process all files (fallback to filesystem date), 'fs': only process files with no EXIF [default: yes]",
+    )
+    
+    parser.add_argument(
+        "-d", "--dryrun",
+        action="store_true",
+        help="Dry run mode: simulate actions, do not move/copy files",
+    )
+    
+    parser.add_argument(
+        "--examples",
+        action="store_true",
+        help="Show usage examples and exit",
+    )
+    
+    # Parse the arguments
+    args = parser.parse_args(args)
+    
+    # If examples flag is set, print examples and exit
+    if args.examples:
+        print_examples()
+        sys.exit(0)
+        
+    return args
 
 
 def main(args=None):
@@ -322,35 +384,19 @@ def main(args=None):
     Parses arguments, sets up logging, validates arguments, and starts processing files.
     Handles mutually exclusive move/copy flags and prompts user if neither is specified.
     """
-    if args is None:
-        args = sys.argv[1:]
-
-    # If no arguments or only script name, show usage and examples
-    if len(args) == 0 or (len(args) == 1 and args[0] in ("-h", "--help")):
-        print_usage_and_examples()
-        sys.exit(0)
-
-    try:
-        arguments = docopt(usage, argv=args)
-    except SystemExit:
-        # If docopt fails, show usage and examples
-        print_usage_and_examples()
-        sys.exit(1)
-
+    # Parse command line arguments
+    parsed_args = parse_arguments(args)
+    
     # Normalize and validate extensions
-    ext_list = normalize_extensions(arguments["--extense"])
+    ext_list = normalize_extensions(parsed_args.extense)
 
     # Determine action: move, copy, or prompt user
-    move_flag = arguments["--move"]
-    copy_flag = arguments["--copy"]
-    dryrun = arguments["--dryrun"]
+    move_flag = parsed_args.move
+    copy_flag = parsed_args.copy
+    dryrun = parsed_args.dryrun
     action = None
 
-    if move_flag and copy_flag:
-        print("Error: --move and --copy cannot be used together.\n")
-        print_usage_and_examples()
-        sys.exit(1)
-    elif move_flag:
+    if move_flag:
         action = "move"
     elif copy_flag:
         action = "copy"
@@ -373,11 +419,10 @@ def main(args=None):
             print("No action selected. Exiting.")
             sys.exit(1)
 
-    exif_only = arguments["--exifOnly"].lower()
-    source_dir = Path(arguments["<source_dir>"]).expanduser().resolve()
-    destination_dir = Path(arguments["<destination_dir>"]).expanduser().resolve()
+    source_dir = Path(parsed_args.source_dir).expanduser().resolve()
+    destination_dir = Path(parsed_args.destination_dir).expanduser().resolve()
 
-    logger = set_up_logging(destination_dir, arguments["--verbose"])
+    logger = set_up_logging(destination_dir, parsed_args.verbose)
 
     logger.info(
         10 * "-"
@@ -385,7 +430,7 @@ def main(args=None):
         + "++ Started: "
         + datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
     )
-    logger.debug("options: " + str(arguments))
+    logger.debug(f"options: {vars(parsed_args)}")
 
     # Validate source and destination directories
     validate_args(source_dir, destination_dir, logger)
@@ -401,7 +446,7 @@ def main(args=None):
 
     # Begin recursive processing of files
     recursive_walk(
-        source_dir, destination_dir, ext_list, action, exif_only, logger, dryrun
+        source_dir, destination_dir, ext_list, action, parsed_args.exifOnly, logger, dryrun
     )
 
     logger.info(

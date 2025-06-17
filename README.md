@@ -1,35 +1,24 @@
 orgphoto (op)
 =========
 
-A script to archive photos off a camera or directory to a directory named by file date. 
-
-It will prefer to use the EXIF date in the file. If not present it will skip file unless the flag `-x no`
-
-(do not skip files without EXIF date) is passed in which case it will use file system creation date. All operations
-are logged into the target directory in a text file.
-
-Note this is a major rewrite of the upstream project skorokithakis/photocopy and this code is not downstreamed from it any longer.
-
-Installation
-------------
-pip 
-Just run:
-
-    1. Clone down the repo, or just download `op.py`
-    2. pip install docopt
-    3. pip install hachoir
-    4. Then execute the script using python.
-
-You're ready to use it!
-
 SUMMARY:
 --------
+
 This script scans a source directory (recursively) for image and video files with specified extensions,
 extracts their creation date (preferably from EXIF metadata, or falls back to the file system date),
 and copies or moves them into subfolders in a destination directory, organized by date (YYYY_MM_DD).
 
+A common use case might be to move them from a mobile device into archive folders, or to reorganize archives. 
+
+It will prefer to use the EXIF date in the file. If not present it will skip file unless the flag `-x no` (do not skip files without EXIF date) is passed in which case it will use file system creation date. All operations are logged into a text file saved into the target directory.
+
+Note this is a major rewrite of the upstream project skorokithakis/photocopy and this code is not downstreamed from it any longer.
+
+
+
 FEATURES:
 ---------
+
 - Supports any file extension recognized by hachoir (default: jpeg, jpg).
 - Recursively processes all subfolders in the source directory.
 - Uses EXIF metadata for creation date if available; otherwise, uses the file system's modification date.
@@ -43,54 +32,45 @@ FEATURES:
 
 USAGE EXAMPLES:
 ---------------
+
 1. Move JPG files from source to destination, organizing by EXIF date, skipping files without EXIF:
-    python photocopy.py -m -j jpg Z:\\photosync target/
+   python photocopy.py -m -j jpg Z:\\photosync target/
 
 2. Copy various file types, using file system date if EXIF is missing:
-    python photocopy.py -c -x no -j gif,png,jpg,mov,mp4 Z:\\photosync target/
+   python photocopy.py -c -x no -j gif,png,jpg,mov,mp4 Z:\\photosync target/
 
 3. Dry run: Simulate moving files without making changes:
-    python photocopy.py -m -d -j jpg Z:\\photosync target/
+   python photocopy.py -m -d -j jpg Z:\\photosync target/
 
 4. Only process files that do not have EXIF data (using file system date):
-    python photocopy.py -c -x fs -j jpg Z:\\photosync target/
+   python photocopy.py -c -x fs -j jpg Z:\\photosync target/
 
 5. Move PNG and JPEG files, verbose logging enabled:
-    python photocopy.py -m -v -j png,jpeg Z:\\photosync target/
+   python photocopy.py -m -v -j png,jpeg Z:\\photosync target/
 
 6. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
 
 See --help for all options.
 
+INSTALLATION
+------------
+**<u>pip</u>** 
+Just run:
 
-Usage - Python script
------
-orgphoto (op) recursively reads the EXIF data from images and 
+    1. Clone down the repo, or just download `op.py`
+    2. pip install docopt
+    3. pip install hachoir
+    4. Then execute the script using python as in # python op.py
 
-You run it with:
+**<u>uv</u>** - Thank you uv!
 
-    ./op.py /media/sdcard/ /home/user/Photos/
-    
- #### Examples:
-    
- 1. Simple. Copy jpg or JPG files from source (Z:\photosync) to target into folders
-       named YYYY_MM_DD using the EXIF Creation Date in the JPG files. Ignore files without
-       EXIF date, but log everything.
-       
-        python op.py -j jpg Z:\photosync Z:\target
-        
-1. More complex. Move (-m yes) files by extensions (-j gif,png,jpg,mov,mp4) shown from source (Z:\photosync) to target into folders   
-        named YYYY_MM_DD using the EXIF Creation Date in the files. File without EXIF date will use the file
-        system creation date (-x no -- means do not skip) to name target folders. Log everything.
-        
-        python op.py -m yes -x no -j gif,png,jpg,mov,mp4 Z:\photosync Z:\target
-
-and it will copy the photos to directories called "2014_03_12" by default.
-See the source file for more examples.
+    1. Clone down the repo (you'll also want the supporting files)
+    2. make sure uv is installed. It will handle dependencies 
+    3. Then execute the script using python as in # uv run op.py
 
 Usage - Windows .exe
 -----
-Using this project https://pypi.org/project/auto-py-to-exe/ it is easy to generate a Windows .exe that works EXACTLY like the script without the hassle of setting up Python where you want to run it. There is a copy of the .exe of some vintage here in this repo.
+This project also contains a Windows executable made by simply compiling the script with this project https://pypi.org/project/auto-py-to-exe/. It works EXACTLY like the script without the hassle of setting up Python where you want to run it. There is a copy of the .exe of some vintage here in this repo.
 
 
 
