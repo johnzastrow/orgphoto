@@ -1,13 +1,13 @@
 #!/usr/bin/env python
+
 import datetime
 import logging
-import os
 import sys
 import shutil
+from pathlib import Path
 
-from docopt import docopt  # For parsing command-line arguments
-
-from hachoir.parser import createParser  # For parsing file metadata
+from docopt import docopt
+from hachoir.parser import createParser
 from hachoir.metadata import extractMetadata
 from hachoir.core import config
 
@@ -17,12 +17,13 @@ usage = """Usage:
 
 Options:
   -h --help                Show this help and exit.
-  -j --extense=str         Extention list - comma separated [default: jpeg,jpg]. Supports all extensions of hachoir
+  -j --extense=str         Extension list - comma separated [default: jpeg,jpg]. Supports all extensions of hachoir
   -m --move=str            move files (--move=yes) or copy (--move=no) [default: no, copy instead]
   -v --verbose             Talk more.
   -x --exifOnly=str        skip file processing if no EXIF (--exifOnly =yes)
                            or process files with no EXIF (--exifOnly =no)
                            or Only process files with no EXIF (--exifOnly =fs) [default: yes]
+  -d --dryrun              Dry run mode: simulate actions, do not move/copy files.
 
 Examples:
     1. Simple. Copy jpg or JPG files from source (Z:\photosync) to target into folders
@@ -38,91 +39,235 @@ Examples:
 
 config.quiet = True  # Suppress hachoir warnings
 
-logger = logging.getLogger(__name__)  # Set up logger for this script
 myversion = "v. 1.2 Farfengruven"
-destination_dir = ""  # Will hold the destination directory path
-extList = []  # List of file extensions to process
-actMove = "no"  # Whether to move or copy files
-exifOnly = ""  # How to handle files without EXIF data
-running_file = str(__file__)  # The path of this script file
-print(str(running_file) + "\n" + "is the file")  # Print script file path for debugging
 
 
-def set_up_logging(arguments):
+def set_up_logging(destination_dir: Path, verbose: bool):
     """
     Set up logging to a file in the destination directory.
     Logging level is set based on the --verbose flag.
     """
-    if arguments["--verbose"]:
-        level = logging.DEBUG  # More detailed logs if verbose
-    else:
-        level = logging.INFO  # Standard logs otherwise
-    logfile = os.path.join(destination_dir, "events.log")  # Log file path
+    logger = logging.getLogger(__name__)
+    level = logging.DEBUG if verbose else logging.INFO
+    logfile = destination_dir / "events.log"
 
-    # Ensure the log directory exists
-    if not os.path.exists(os.path.dirname(logfile)):
-        os.makedirs(os.path.dirname(logfile))
-    # Ensure the log file exists
-    if not os.path.exists(logfile):
-        open(logfile, "a").close()
+    try:
+        logfile.parent.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"Failed to create log directory: {e}")
+        sys.exit(1)
+    try:
+        if not logfile.exists():
+            logfile.touch()
+    except Exception as e:
+        print(f"Failed to create log file: {e}")
+        sys.exit(1)
     logger.setLevel(level)
-    ch = logging.FileHandler(logfile)  # Log to file
+    ch = logging.FileHandler(logfile, encoding="utf-8")
     ch.setLevel(level)
-    formatter = logging.Formatter("%(message)s")  # Simple log format
+    formatter = logging.Formatter("%(message)s")
     ch.setFormatter(formatter)
-    logger.addHandler(ch)
+    if not logger.handlers:
+        logger.addHandler(ch)
+    return logger
 
 
-def get_created_date(filename):
+def get_created_date(filename: Path, logger):
     """
     Attempt to extract the creation date from the file's metadata (EXIF).
     Returns a datetime object if successful, otherwise None.
     """
     created_date = None
-    parser = createParser(filename)  # Create a parser for the file
+    try:
+        parser = createParser(str(filename))
+    except Exception as e:
+        logger.debug(f"Failed to create parser for {filename}: {e}")
+        return created_date
     if not parser:
-        logger.debug("Unable to parse file for created date")
+        logger.debug(f"Unable to parse file for created date: {filename}")
         return created_date
 
-    with parser:
-        try:
-            metadata = extractMetadata(parser)  # Extract metadata
-        except Exception as err:
-            logger.debug("Metadata extraction error: %s" % err)
-            metadata = None
-    if not metadata:
-        logger.debug("Unable to extract metadata")
-    else:
-        cd = metadata.getValues("creation_date")  # Get creation date values
-        if len(cd) > 0:
-            created_date = cd[0]  # Use the first creation date found
+    try:
+        with parser:
+            try:
+                metadata = extractMetadata(parser)
+            except Exception as err:
+                logger.debug(f"Metadata extraction error for {filename}: {err}")
+                metadata = None
+        if not metadata:
+            logger.debug(f"Unable to extract metadata for {filename}")
+        else:
+            cd = metadata.getValues("creation_date")
+            if len(cd) > 0:
+                created_date = cd[0]
+    except Exception as e:
+        logger.debug(f"Error during metadata extraction for {filename}: {e}")
     return created_date
+
+
+def validate_args(source_dir: Path, destination_dir: Path, logger):
+    """
+    Validate that source and destination directories are not the same,
+    and that the source exists before proceeding.
+    """
+    if not source_dir.exists() or not source_dir.is_dir():
+        logger.error(f"Source directory does not exist: {source_dir}")
+        sys.exit(1)
+    if source_dir.resolve() == destination_dir.resolve():
+        logger.error("Source and destination directories must not be the same.")
+        sys.exit(1)
+
+
+def normalize_extensions(ext_string: str):
+    """
+    Normalize extensions to lowercase, strip whitespace, and ensure they start with a dot.
+    """
+    return [
+        "." + ext.strip().lower().lstrip(".")
+        for ext in ext_string.split(",")
+        if ext.strip()
+    ]
+
+
+def recursive_walk(
+    source_dir: Path,
+    destination_dir: Path,
+    ext_list,
+    act_move,
+    exif_only,
+    logger,
+    dryrun=False,
+):
+    """
+    Walk through the folder and process files with matching extensions.
+    Progress reporting is included.
+    """
+    total_files = 0
+    processed_files = 0
+    for folderName, _, filenames in os.walk(source_dir):
+        logger.info(f"Source Folder: {folderName}")
+        for filename in filenames:
+            file_extension = Path(filename).suffix.lower()
+            if file_extension in ext_list:
+                total_files += 1
+                processed_files += moveFile(
+                    Path(folderName),
+                    filename,
+                    destination_dir,
+                    act_move,
+                    exif_only,
+                    logger,
+                    dryrun,
+                )
+                if processed_files % 100 == 0:
+                    logger.info(f"Processed {processed_files} files so far...")
+    logger.info(f"Total files matched: {total_files}, processed: {processed_files}")
+
+
+def moveFile(
+    folder: Path,
+    filename: str,
+    destination_dir: Path,
+    act_move: str,
+    exif_only: str,
+    logger,
+    dryrun=False,
+):
+    """
+    Move or copy a file to the destination directory, organizing by date.
+    Uses EXIF creation date if available, otherwise uses file system date.
+    Handles skipping or processing files based on exifOnly option.
+    Adds robust error handling for file and directory operations.
+    Returns 1 if file was processed, 0 otherwise.
+    """
+    fullpath = folder / filename
+    try:
+        cd = get_created_date(fullpath, logger)
+    except Exception as e:
+        logger.error(f"Error extracting date from {fullpath}: {e}")
+        return 0
+    comment = " " * 9
+    if not cd:
+        try:
+            cd = datetime.datetime.fromtimestamp(fullpath.stat().st_mtime)
+            comment = " no EXIF "
+        except Exception as e:
+            logger.error(f"Failed to get file system date for {fullpath}: {e}")
+            return 0
+    try:
+        created_date = cd.strftime("%Y_%m_%d")
+    except Exception as e:
+        logger.error(f"Failed to format date for {fullpath}: {e}")
+        return 0
+    space = 40 - len(filename)
+    if space <= 0:
+        space = 4
+    destf = destination_dir / created_date
+
+    # exifOnly logic
+    if not comment.isspace() and exif_only == "yes":
+        logger.info(f"  {filename}  {comment:>{space}}    skipped")
+        return 0
+    else:
+        flagM = "moved" if act_move == "yes" else "copied"
+        if (
+            exif_only == "no"
+            or (exif_only == "yes" and comment.isspace())
+            or (exif_only == "fs" and not comment.isspace())
+        ):
+            try:
+                if not destf.exists():
+                    if not dryrun:
+                        destf.mkdir(parents=True, exist_ok=True)
+                    logger.info(f"created new destination subdir: {destf}")
+            except Exception as e:
+                logger.error(f"Failed to create destination subdir {destf}: {e}")
+                return 0
+            dest_file_path = destf / filename
+            if not dest_file_path.exists():
+                try:
+                    if not dryrun:
+                        if act_move == "yes":
+                            shutil.move(str(fullpath), str(destf))
+                        else:
+                            shutil.copy2(str(fullpath), str(destf))
+                    logger.info(
+                        f"  {filename}  {comment:>{space}}  {str(cd)} {flagM:>3} {destf}"
+                        + (" [DRY RUN]" if dryrun else "")
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to {flagM} {fullpath} to {destf}: {e}")
+                    return 0
+            else:
+                logger.info("  " + filename + " already exists in " + str(destf))
+            return 1
+        elif exif_only == "fs" and comment.isspace():
+            logger.info(f"  {filename}  {comment:>{space}}    skipped")
+            return 0
+    return 0
 
 
 def main(args=None):
     """
     Main entry point for the script.
-    Parses arguments, sets up logging, and starts processing files.
+    Parses arguments, sets up logging, validates arguments, and starts processing files.
     """
-    global destination_dir, extList, actMove, exifOnly
     if args is None:
         args = sys.argv[1:]
-    arguments = docopt(usage)  # Parse command-line arguments
+    arguments = docopt(usage)
 
-    # Parse file extensions from arguments
-    extensions = arguments["--extense"]
-    extList = extensions.split(",")
-    extList[:] = ["." + x for x in extList]  # Add '.' to each extension
+    # Normalize and validate extensions
+    ext_list = normalize_extensions(arguments["--extense"])
 
-    # Parse other options
-    actMove = arguments["--move"]
-    exifOnly = arguments["--exifOnly"]
+    act_move = arguments["--move"].lower()
+    exif_only = arguments["--exifOnly"].lower()
+    dryrun = arguments["--dryrun"]
 
-    source_dir = arguments["<source_dir>"]
-    destination_dir = arguments["<destination_dir>"]
-    set_up_logging(arguments)  # Set up logging
+    source_dir = Path(arguments["<source_dir>"]).expanduser().resolve()
+    destination_dir = Path(arguments["<destination_dir>"]).expanduser().resolve()
 
-    # Log job start
+    logger = set_up_logging(destination_dir, arguments["--verbose"])
+
     logger.info(
         10 * "-"
         + myversion
@@ -130,85 +275,25 @@ def main(args=None):
         + datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
     )
     logger.debug("options: " + str(arguments))
-    if not os.path.isdir(destination_dir):
-        os.makedirs(destination_dir)
-        logger.info("created: " + destination_dir)
-    if os.path.isdir(source_dir):
-        # Start recursive processing of source directory
-        recursive_walk(source_dir)
-    else:
-        logger.info("source dir not exists: " + source_dir)
-    # Log job end
+
+    validate_args(source_dir, destination_dir, logger)
+
+    try:
+        if not destination_dir.exists():
+            destination_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(f"created: {destination_dir}")
+    except Exception as e:
+        logger.error(f"Failed to create destination directory {destination_dir}: {e}")
+        sys.exit(1)
+
+    recursive_walk(
+        source_dir, destination_dir, ext_list, act_move, exif_only, logger, dryrun
+    )
+
     logger.info(
         10 * "_" + "** Ended: " + datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
     )
     logging.shutdown()
-
-
-def recursive_walk(folder):
-    """
-    Recursively walk through the folder and process files with matching extensions.
-    """
-    for folderName, subfolders, filenames in os.walk(folder):
-        logger.info("Source Folder: " + folderName)
-        for filename in filenames:
-            file_details = os.path.splitext(filename)
-            file_extension = file_details[1].lower()
-            # Only process files with the specified extensions
-            if file_extension in extList:
-                moveFile(folderName, filename)
-        if subfolders:  # If there are subfolders, process them recursively
-            for subfolder in subfolders:
-                recursive_walk(subfolder)
-
-
-def moveFile(folder, filename):
-    """
-    Move or copy a file to the destination directory, organizing by date.
-    Uses EXIF creation date if available, otherwise uses file system date.
-    Handles skipping or processing files based on exifOnly option.
-    """
-    fullpath = os.path.join(folder, filename)
-    cd = get_created_date(fullpath)  # Try to get EXIF creation date
-    comment = 9 * " "  # Default: assume EXIF present
-    if not cd:
-        # If no EXIF, use file system modification time
-        cd = datetime.datetime.fromtimestamp(os.path.getmtime(fullpath))
-        comment = " no EXIF "
-    created_date = cd.strftime("%Y_%m_%d")  # Format date for folder name
-    space = 40 - len(filename)
-    if space <= 0:
-        space = 4
-    destf = os.path.join(destination_dir, created_date)  # Destination subfolder
-
-    # If file has no EXIF and exifOnly is 'yes', skip processing
-    if not comment.isspace() and exifOnly == "yes":
-        logger.info(f"  {filename}  {comment:>{space}}    skipped")
-    else:
-        flagM = "moved" if actMove == "yes" else "copied"
-        # Decide whether to process file based on exifOnly option
-        if (
-            exifOnly == "no"
-            or (exifOnly == "yes" and comment.isspace())
-            or (exifOnly == "fs" and not comment.isspace())
-        ):
-            # Create destination subfolder if it doesn't exist
-            if not os.path.isdir(destf):
-                os.makedirs(destf)
-                logger.info(f"created new destination subdir: {destf}")
-            # Only move/copy if file doesn't already exist at destination
-            if not os.path.exists(os.path.join(destf, filename)):
-                if actMove == "yes":
-                    shutil.move(fullpath, destf)
-                else:
-                    shutil.copy2(fullpath, destf)
-                logger.info(
-                    f"  {filename}  {comment:>{space}}  {str(cd)} {flagM:>3} {destf}"
-                )
-            else:
-                logger.info("  " + filename + " already exists in " + destf)
-        elif exifOnly == "fs" and comment.isspace():
-            logger.info(f"  {filename}  {comment:>{space}}    skipped")
 
 
 if __name__ == "__main__":
