@@ -97,7 +97,7 @@ Just run:
     2. pip install hachoir
     3. Then execute the script using python as in # python op.py
 
-**<u>uv</u>** - Thank you uv! [uv installation here](https://docs.astral.sh/uv/getting-started/installation/)
+**<u>uv</u>** - Thank you uv! ![uv installation here](https://docs.astral.sh/uv/getting-started/installation/)
 
     1. Clone the repo (you'll also want the supporting files)
     2. Make sure uv is installed. It will handle dependencies 
@@ -119,15 +119,9 @@ Here's an example of running the built .exe in Windows, where op.exe is asked to
 Examples of log entries
 ------------------------
 
-#### Plain info logging
+#### Plain info logging on top, verbose debug logging on the bottom
 
-![Plain log](../main/doc/log1b.png)
-
-
-#### Debug, verbose logging
-
-![Debug log](../main/doc/log1.png)
-
+![logging](../main/doc/log2.png)
 
 
  File Formats
