@@ -1,10 +1,44 @@
 #!/usr/bin/env python
 
+"""
+photocopy.py - Organize and copy/move photos and videos by date
+
+SUMMARY:
+--------
+This script scans a source directory (recursively) for image and video files with specified extensions,
+extracts their creation date (preferably from EXIF metadata, or falls back to the file system date),
+and copies or moves them into subfolders in a destination directory, organized by date (YYYY_MM_DD).
+
+FEATURES:
+---------
+- Supports any file extension recognized by hachoir (default: jpeg, jpg).
+- Recursively processes all subfolders in the source directory.
+- Uses EXIF metadata for creation date if available; otherwise, uses the file system's modification date.
+- Can skip, only process, or fallback to file system date for files without EXIF metadata (configurable).
+- Optionally moves files instead of copying.
+- Dry run mode: simulate actions without making changes.
+- Progress reporting and detailed logging to a file in the destination directory.
+- Robust error handling for file operations, directory creation, and metadata extraction.
+- Command-line interface with flexible options using docopt.
+- Uses pathlib for modern, robust path handling.
+
+USAGE EXAMPLES:
+---------------
+1. Move JPG files from source to destination, organizing by EXIF date, skipping files without EXIF:
+    python photocopy.py -m -j jpg Z:\photosync target/
+
+2. Copy various file types, using file system date if EXIF is missing:
+    python photocopy.py -c -x no -j gif,png,jpg,mov,mp4 Z:\photosync target/
+
+See --help for all options.
+"""
+
 import datetime
 import logging
 import sys
 import shutil
 from pathlib import Path
+import os
 
 from docopt import docopt
 from hachoir.parser import createParser
@@ -18,7 +52,8 @@ usage = """Usage:
 Options:
   -h --help                Show this help and exit.
   -j --extense=str         Extension list - comma separated [default: jpeg,jpg]. Supports all extensions of hachoir
-  -m --move=str            move files (--move=yes) or copy (--move=no) [default: no, copy instead]
+  -m --move                Move files (cannot be used with --copy)
+  -c --copy                Copy files (cannot be used with --move)
   -v --verbose             Talk more.
   -x --exifOnly=str        skip file processing if no EXIF (--exifOnly =yes)
                            or process files with no EXIF (--exifOnly =no)
@@ -26,15 +61,15 @@ Options:
   -d --dryrun              Dry run mode: simulate actions, do not move/copy files.
 
 Examples:
-    1. Simple. Copy jpg or JPG files from source (Z:\photosync) to target into folders
+    1. Move jpg or JPG files from source (Z:\photosync) to target into folders
        named YYYY_MM_DD using the EXIF Creation Date in the JPG files. Ignore files without
        EXIF date, but log everything.
-        # python photocopy.py -j jpg Z:\photosync target/
+        # python photocopy.py -m -j jpg Z:\photosync target/
 
-    2. More complex. Move (-m yes) files by extensions shown from source (Z:\photosync) to target into folders
+    2. Copy files by extensions shown from source (Z:\photosync) to target into folders
         named YYYY_MM_DD using the EXIF Creation Date in the files. File without EXIF date will use the file
         system creation date to name target folders. Log everything.
-        # python photocopy.py -m yes -x no -j gif,png,jpg,mov,mp4 Z:\photosync target/
+        # python photocopy.py -c -x no -j gif,png,jpg,mov,mp4 Z:\photosync target/
 """
 
 config.quiet = True  # Suppress hachoir warnings
@@ -46,16 +81,19 @@ def set_up_logging(destination_dir: Path, verbose: bool):
     """
     Set up logging to a file in the destination directory.
     Logging level is set based on the --verbose flag.
+    Returns a logger instance.
     """
     logger = logging.getLogger(__name__)
     level = logging.DEBUG if verbose else logging.INFO
     logfile = destination_dir / "events.log"
 
+    # Ensure the log directory exists
     try:
         logfile.parent.mkdir(parents=True, exist_ok=True)
     except Exception as e:
         print(f"Failed to create log directory: {e}")
         sys.exit(1)
+    # Ensure the log file exists
     try:
         if not logfile.exists():
             logfile.touch()
@@ -109,6 +147,7 @@ def validate_args(source_dir: Path, destination_dir: Path, logger):
     """
     Validate that source and destination directories are not the same,
     and that the source exists before proceeding.
+    Exits the program if validation fails.
     """
     if not source_dir.exists() or not source_dir.is_dir():
         logger.error(f"Source directory does not exist: {source_dir}")
@@ -121,6 +160,7 @@ def validate_args(source_dir: Path, destination_dir: Path, logger):
 def normalize_extensions(ext_string: str):
     """
     Normalize extensions to lowercase, strip whitespace, and ensure they start with a dot.
+    Returns a list of normalized extensions.
     """
     return [
         "." + ext.strip().lower().lstrip(".")
@@ -133,14 +173,14 @@ def recursive_walk(
     source_dir: Path,
     destination_dir: Path,
     ext_list,
-    act_move,
+    action,
     exif_only,
     logger,
     dryrun=False,
 ):
     """
     Walk through the folder and process files with matching extensions.
-    Progress reporting is included.
+    Logs progress and summary statistics.
     """
     total_files = 0
     processed_files = 0
@@ -154,11 +194,12 @@ def recursive_walk(
                     Path(folderName),
                     filename,
                     destination_dir,
-                    act_move,
+                    action,
                     exif_only,
                     logger,
                     dryrun,
                 )
+                # Progress reporting every 100 files processed
                 if processed_files % 100 == 0:
                     logger.info(f"Processed {processed_files} files so far...")
     logger.info(f"Total files matched: {total_files}, processed: {processed_files}")
@@ -168,7 +209,7 @@ def moveFile(
     folder: Path,
     filename: str,
     destination_dir: Path,
-    act_move: str,
+    action: str,
     exif_only: str,
     logger,
     dryrun=False,
@@ -186,8 +227,9 @@ def moveFile(
     except Exception as e:
         logger.error(f"Error extracting date from {fullpath}: {e}")
         return 0
-    comment = " " * 9
+    comment = " " * 9  # Used for logging if EXIF is missing
     if not cd:
+        # If no EXIF, fallback to file system modification time
         try:
             cd = datetime.datetime.fromtimestamp(fullpath.stat().st_mtime)
             comment = " no EXIF "
@@ -204,12 +246,12 @@ def moveFile(
         space = 4
     destf = destination_dir / created_date
 
-    # exifOnly logic
+    # exifOnly logic: skip, only process, or fallback for files without EXIF
     if not comment.isspace() and exif_only == "yes":
         logger.info(f"  {filename}  {comment:>{space}}    skipped")
         return 0
     else:
-        flagM = "moved" if act_move == "yes" else "copied"
+        flagM = "moved" if action == "move" else "copied"
         if (
             exif_only == "no"
             or (exif_only == "yes" and comment.isspace())
@@ -227,7 +269,7 @@ def moveFile(
             if not dest_file_path.exists():
                 try:
                     if not dryrun:
-                        if act_move == "yes":
+                        if action == "move":
                             shutil.move(str(fullpath), str(destf))
                         else:
                             shutil.copy2(str(fullpath), str(destf))
@@ -251,6 +293,7 @@ def main(args=None):
     """
     Main entry point for the script.
     Parses arguments, sets up logging, validates arguments, and starts processing files.
+    Handles mutually exclusive move/copy flags and prompts user if neither is specified.
     """
     if args is None:
         args = sys.argv[1:]
@@ -259,10 +302,39 @@ def main(args=None):
     # Normalize and validate extensions
     ext_list = normalize_extensions(arguments["--extense"])
 
-    act_move = arguments["--move"].lower()
-    exif_only = arguments["--exifOnly"].lower()
+    # Determine action: move, copy, or prompt user
+    move_flag = arguments["--move"]
+    copy_flag = arguments["--copy"]
     dryrun = arguments["--dryrun"]
+    action = None
 
+    if move_flag and copy_flag:
+        print("Error: --move and --copy cannot be used together.")
+        sys.exit(1)
+    elif move_flag:
+        action = "move"
+    elif copy_flag:
+        action = "copy"
+    else:
+        # Neither move nor copy specified: prompt user
+        print("Warning: Neither --move nor --copy specified.")
+        print(
+            "Would you like to run in dryrun mode simulating moving files? [Y/n]: ",
+            end="",
+        )
+        try:
+            user_input = input().strip().lower()
+        except EOFError:
+            user_input = "y"
+        if user_input in ("", "y", "yes"):
+            dryrun = True
+            action = "move"
+            print("Running in dryrun mode simulating moving files.")
+        else:
+            print("No action selected. Exiting.")
+            sys.exit(1)
+
+    exif_only = arguments["--exifOnly"].lower()
     source_dir = Path(arguments["<source_dir>"]).expanduser().resolve()
     destination_dir = Path(arguments["<destination_dir>"]).expanduser().resolve()
 
@@ -276,8 +348,10 @@ def main(args=None):
     )
     logger.debug("options: " + str(arguments))
 
+    # Validate source and destination directories
     validate_args(source_dir, destination_dir, logger)
 
+    # Ensure destination directory exists
     try:
         if not destination_dir.exists():
             destination_dir.mkdir(parents=True, exist_ok=True)
@@ -286,8 +360,9 @@ def main(args=None):
         logger.error(f"Failed to create destination directory {destination_dir}: {e}")
         sys.exit(1)
 
+    # Begin recursive processing of files
     recursive_walk(
-        source_dir, destination_dir, ext_list, act_move, exif_only, logger, dryrun
+        source_dir, destination_dir, ext_list, action, exif_only, logger, dryrun
     )
 
     logger.info(
