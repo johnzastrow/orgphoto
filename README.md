@@ -70,7 +70,11 @@ Just run:
 
 Usage - Windows .exe
 -----
-This project also contains a Windows executable made by simply compiling the script with this project https://pypi.org/project/auto-py-to-exe/. It works EXACTLY like the script without the hassle of setting up Python where you want to run it. There is a copy of the .exe of some vintage here in this repo.
+This project also contains a Windows executable made by simply compiling the script with this project https://pypi.org/project/auto-py-to-exe/ "A .py to .exe converter using a simple graphical interface and PyInstaller in Python." It works EXACTLY like the script without the hassle of setting up Python where you want to run it. There is a copy of the .exe of some vintage here in this repo.
+
+This is the command I used to build the .exe, though I cheated by using the UI
+
+``` pyinstaller --noconfirm --onefile --console --icon "C:\Github\orgphoto\doc\favicon.ico"  "C:\Github\orgphoto\op\op.py" ```
 
 
 

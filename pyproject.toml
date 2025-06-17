@@ -5,5 +5,6 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "auto-py-to-exe>=2.46.0",
     "hachoir>=3.3.0",
 ]
