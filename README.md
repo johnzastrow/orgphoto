@@ -30,23 +30,52 @@ FEATURES:
 - Command-line interface with flexible options using docopt.
 - Uses pathlib for modern, robust path handling.
 
+USAGE:
+---------
+From the packaged .exe. But the script is the same code.
+
+```bash
+C:\Users\user\Github\orgphoto\output>op.exe -h
+usage: op.exe [-h] [-m | -c] [-j EXT] [-v] [-x {yes,no,fs}] [-d] [--examples] SOURCE_DIR DEST_DIR
+
+Organize and copy/move photos and videos by date
+
+positional arguments:
+  SOURCE_DIR            Source directory containing images/videos to organize
+  DEST_DIR              Destination directory where organized files will be placed
+
+options:
+  -h, --help            show this help message and exit
+  -m, --move            Move files (cannot be used with --copy)
+  -c, --copy            Copy files (cannot be used with --move)
+  -j, --extensions EXT  Extension list - comma separated [default: jpeg,jpg]. Supports all extensions of hachoir
+  -v, --verbose         Talk more
+  -x, --exifOnly {yes,no,fs}
+                        'yes': skip files with no EXIF, 'no': process all files (fallback to filesystem date), 'fs': only process
+                        files with no EXIF [default: yes]
+  -d, --dryrun          Dry run mode: simulate actions, do not move/copy files
+  --examples            Show usage examples and exit
+
+If neither --move nor --copy is specified, the script will prompt to run in dryrun mode simulating moving files.
+```
+
 USAGE EXAMPLES:
 ---------------
 
 1. Move JPG files from source to destination, organizing by EXIF date, skipping files without EXIF:
-   python photocopy.py -m -j jpg Z:\\photosync target/
+   python op.py -m -j jpg Z:\\photosync target/
 
 2. Copy various file types, using file system date if EXIF is missing:
-   python photocopy.py -c -x no -j gif,png,jpg,mov,mp4 Z:\\photosync target/
+   python op.py -c -x no -j gif,png,jpg,mov,mp4 Z:\\photosync target/
 
 3. Dry run: Simulate moving files without making changes:
-   python photocopy.py -m -d -j jpg Z:\\photosync target/
+   python op.py -m -d -j jpg Z:\\photosync target/
 
 4. Only process files that do not have EXIF data (using file system date):
-   python photocopy.py -c -x fs -j jpg Z:\\photosync target/
+   python op.py -c -x fs -j jpg Z:\\photosync target/
 
 5. Move PNG and JPEG files, verbose logging enabled:
-   python photocopy.py -m -v -j png,jpeg Z:\\photosync target/
+   python op.py -m -v -j png,jpeg Z:\\photosync target/
 
 6. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
 
@@ -77,6 +106,9 @@ This is the command I used to build the .exe, though I cheated by using the UI
 ``` pyinstaller --noconfirm --onefile --console --icon "C:\Github\orgphoto\doc\favicon.ico"  "C:\Github\orgphoto\op\op.py" ```
 
 
+Here's an example of running the built .exe in Windows, where op.exe is asked to Move all files even if No eXif data is found (ahem heic files), move files of extensions (case-insensitive) jpg,png,jpeg,heic,mov, from `src1` (and its sub directories) to `target` into folders by date.
+
+```op.exe -m -x no -j jpg,png,jpeg,heic,mov C:\\Users\\user\\Github\\orgphoto\\testing\\src1 C:\\Users\\user\\Github\\orgphoto\\testing\\target```
 
 Examples of log entries
 ------------------------
