@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""
+r"""
 photocopy.py - Organize and copy/move photos and videos by date
 
 SUMMARY:
@@ -25,28 +25,28 @@ FEATURES:
 USAGE EXAMPLES:
 ---------------
 1. Move JPG files from source to destination, organizing by EXIF date, skipping files without EXIF:
-    python photocopy.py -m -j jpg Z:\photosync target/
+    python photocopy.py -m -j jpg Z:\\photosync target/
 
 2. Copy various file types, using file system date if EXIF is missing:
-    python photocopy.py -c -x no -j gif,png,jpg,mov,mp4 Z:\photosync target/
+    python photocopy.py -c -x no -j gif,png,jpg,mov,mp4 Z:\\photosync target/
 
 3. Dry run: Simulate moving files without making changes:
-    python photocopy.py -m -d -j jpg Z:\photosync target/
+    python photocopy.py -m -d -j jpg Z:\\photosync target/
 
 4. Only process files that do not have EXIF data (using file system date):
-    python photocopy.py -c -x fs -j jpg Z:\photosync target/
+    python photocopy.py -c -x fs -j jpg Z:\\photosync target/
 
 5. Move PNG and JPEG files, verbose logging enabled:
-    python photocopy.py -m -v -j png,jpeg Z:\photosync target/
+    python photocopy.py -m -v -j png,jpeg Z:\\photosync target/
 
 6. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
 
 See --help for all options.
 """
 
+import sys
 import datetime
 import logging
-import sys
 import shutil
 from pathlib import Path
 import os
@@ -70,28 +70,27 @@ Options:
                            or process files with no EXIF (--exifOnly =no)
                            or Only process files with no EXIF (--exifOnly =fs) [default: yes]
   -d --dryrun              Dry run mode: simulate actions, do not move/copy files.
+"""
 
-Examples:
-    1. Move jpg or JPG files from source (Z:\photosync) to target into folders
-       named YYYY_MM_DD using the EXIF Creation Date in the JPG files. Ignore files without
-       EXIF date, but log everything.
-        # python photocopy.py -m -j jpg Z:\photosync target/
+examples = """
+USAGE EXAMPLES:
+---------------
+1. Move JPG files from source to destination, organizing by EXIF date, skipping files without EXIF:
+    python photocopy.py -m -j jpg Z:\\photosync target/
 
-    2. Copy files by extensions shown from source (Z:\photosync) to target into folders
-        named YYYY_MM_DD using the EXIF Creation Date in the files. File without EXIF date will use the file
-        system creation date to name target folders. Log everything.
-        # python photocopy.py -c -x no -j gif,png,jpg,mov,mp4 Z:\photosync target/
+2. Copy various file types, using file system date if EXIF is missing:
+    python photocopy.py -c -x no -j gif,png,jpg,mov,mp4 Z:\\photosync target/
 
-    3. Dry run: Simulate moving files without making changes:
-        # python photocopy.py -m -d -j jpg Z:\photosync target/
+3. Dry run: Simulate moving files without making changes:
+    python photocopy.py -m -d -j jpg Z:\\photosync target/
 
-    4. Only process files that do not have EXIF data (using file system date):
-        # python photocopy.py -c -x fs -j jpg Z:\photosync target/
+4. Only process files that do not have EXIF data (using file system date):
+    python photocopy.py -c -x fs -j jpg Z:\\photosync target/
 
-    5. Move PNG and JPEG files, verbose logging enabled:
-        # python photocopy.py -m -v -j png,jpeg Z:\photosync target/
+5. Move PNG and JPEG files, verbose logging enabled:
+    python photocopy.py -m -v -j png,jpeg Z:\\photosync target/
 
-    6. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
+6. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
 """
 
 config.quiet = True  # Suppress hachoir warnings
@@ -311,6 +310,12 @@ def moveFile(
     return 0
 
 
+def print_usage_and_examples():
+    """Print usage and examples to the user."""
+    print(usage)
+    print(examples)
+
+
 def main(args=None):
     """
     Main entry point for the script.
@@ -319,7 +324,18 @@ def main(args=None):
     """
     if args is None:
         args = sys.argv[1:]
-    arguments = docopt(usage)
+
+    # If no arguments or only script name, show usage and examples
+    if len(args) == 0 or (len(args) == 1 and args[0] in ("-h", "--help")):
+        print_usage_and_examples()
+        sys.exit(0)
+
+    try:
+        arguments = docopt(usage, argv=args)
+    except SystemExit:
+        # If docopt fails, show usage and examples
+        print_usage_and_examples()
+        sys.exit(1)
 
     # Normalize and validate extensions
     ext_list = normalize_extensions(arguments["--extense"])
@@ -331,7 +347,8 @@ def main(args=None):
     action = None
 
     if move_flag and copy_flag:
-        print("Error: --move and --copy cannot be used together.")
+        print("Error: --move and --copy cannot be used together.\n")
+        print_usage_and_examples()
         sys.exit(1)
     elif move_flag:
         action = "move"
