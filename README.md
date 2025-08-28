@@ -45,6 +45,8 @@ FEATURES:
   - `rename` - Add numeric suffix to duplicates (e.g., `photo_001.jpg`)
   - `content` - Compare file hashes; skip identical content, rename different content
   - `interactive` - Prompt user for each duplicate with full context
+  - `redirect` - Move duplicates to separate directory with intelligent renaming
+- **Intelligent duplicate redirection**: Configurable directory and keyword for duplicate organization
 - **Performance control**: Use `-N` flag to disable comprehensive checking for large target directories
 - **Smart conflict resolution**: Automatically generates unique filenames when needed
 
@@ -120,33 +122,43 @@ USAGE EXAMPLES:
    python op.py -c -D rename -j jpg Z:\photosync target/
    ```
 
-7. **Overwrite all duplicates (replace existing files)**:
+7. **Redirect duplicates to separate directory**:
+   ```bash
+   python op.py -c -D redirect -j jpg Z:\photosync target/
+   ```
+
+8. **Redirect duplicates with custom directory and keyword**:
+   ```bash
+   python op.py -c -D redirect -R MyDuplicates -K copy -j jpg Z:\photosync target/
+   ```
+
+9. **Overwrite all duplicates (replace existing files)**:
    ```bash
    python op.py -m -D overwrite -j jpg Z:\photosync target/
    ```
 
 ### Performance Options
 
-8. **Disable comprehensive checking for large target directories**:
-   ```bash
-   python op.py -c -N -j jpg Z:\photosync target/
-   ```
+10. **Disable comprehensive checking for large target directories**:
+    ```bash
+    python op.py -c -N -j jpg Z:\photosync target/
+    ```
 
-9. **Fast mode: disable comprehensive checking + rename duplicates**:
-   ```bash
-   python op.py -c -N -D rename -j jpg Z:\photosync target/
-   ```
+11. **Fast mode: disable comprehensive checking + rename duplicates**:
+    ```bash
+    python op.py -c -N -D rename -j jpg Z:\photosync target/
+    ```
 
 ### Advanced Combinations
 
-10. **Verbose logging with content-based duplicate detection**:
+12. **Verbose logging with content-based duplicate detection**:
     ```bash
     python op.py -m -v -D content -j png,jpeg Z:\photosync target/
     ```
 
-11. **Process files without EXIF using file system date, with interactive duplicates**:
+13. **Process files without EXIF using file system date, with redirect duplicates**:
     ```bash
-    python op.py -c -x fs -D interactive -j jpg Z:\photosync target/
+    python op.py -c -x fs -D redirect -R DuplicatesNoExif -j jpg Z:\photosync target/
     ```
 
 *If neither `-m` nor `-c` is specified, the script will prompt to run in dryrun mode simulating moving files.*
@@ -155,6 +167,7 @@ USAGE EXAMPLES:
 - `-m` = move, `-c` = copy, `-d` = dry run, `-v` = verbose
 - `-j` = extensions, `-x` = EXIF handling  
 - `-D` = duplicate handling, `-N` = disable comprehensive check
+- `-R` = redirect directory, `-K` = duplicate keyword
 
 See `python op.py --help` or `python op.py --examples` for all options.
 

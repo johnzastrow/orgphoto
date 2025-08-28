@@ -48,13 +48,19 @@ USAGE EXAMPLES:
 8. Copy files always renaming duplicates:
     python op.py -c -D rename -j jpg Z:\\photosync target/
 
-9. Disable comprehensive SHA256 checking for better performance:
+9. Redirect duplicates to separate directory:
+    python op.py -c -D redirect -j jpg Z:\\photosync target/
+
+10. Redirect duplicates with custom directory and keyword:
+    python op.py -c -D redirect -R MyDuplicates -K copy -j jpg Z:\\photosync target/
+
+11. Disable comprehensive SHA256 checking for better performance:
     python op.py -c -N -j jpg Z:\\photosync target/
 
-10. Copy with comprehensive duplicate detection (checks against ALL target files):
+12. Copy with comprehensive duplicate detection (checks against ALL target files):
     python op.py -c -D content -j jpg Z:\\photosync target/
 
-11. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
+13. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
 
 See --help for all options.
 """
@@ -132,6 +138,138 @@ def generate_unique_filename(dest_file_path: Path) -> Path:
         # Safety limit to prevent infinite loop
         if counter > 9999:
             raise ValueError(f"Too many duplicates for {dest_file_path}")
+
+
+def generate_duplicate_filename(original_path: Path, duplicate_keyword: str = "duplicate") -> Path:
+    """
+    Generate a duplicate filename by inserting the duplicate keyword.
+    
+    Args:
+        original_path (Path): Original file path
+        duplicate_keyword (str): Keyword to insert (default: "duplicate")
+    
+    Returns:
+        Path: New path with duplicate keyword inserted
+        
+    Example:
+        photo.jpg -> photo_duplicate.jpg
+        vacation_2023.png -> vacation_2023_duplicate.png
+    """
+    base_name = original_path.stem
+    suffix = original_path.suffix
+    parent = original_path.parent
+    
+    duplicate_name = f"{base_name}_{duplicate_keyword}{suffix}"
+    return parent / duplicate_name
+
+
+def generate_unique_duplicate_filename(dest_dir: Path, filename: str, duplicate_keyword: str = "duplicate") -> Path:
+    """
+    Generate a unique duplicate filename with incrementing numbers if needed.
+    
+    Args:
+        dest_dir (Path): Destination directory
+        filename (str): Original filename  
+        duplicate_keyword (str): Keyword to insert
+    
+    Returns:
+        Path: Unique duplicate filename path
+        
+    Examples:
+        photo.jpg -> photo_duplicate.jpg (if unique)
+        photo.jpg -> photo_duplicate_001.jpg (if photo_duplicate.jpg exists)
+        photo.jpg -> photo_duplicate_002.jpg (if photo_duplicate_001.jpg exists)
+    """
+    original_path = dest_dir / filename
+    base_duplicate = generate_duplicate_filename(original_path, duplicate_keyword)
+    
+    if not base_duplicate.exists():
+        return base_duplicate
+    
+    # If duplicate filename exists, add incrementing numbers
+    base_name = original_path.stem
+    suffix = original_path.suffix
+    counter = 1
+    
+    while True:
+        new_name = f"{base_name}_{duplicate_keyword}_{counter:03d}{suffix}"
+        new_path = dest_dir / new_name
+        if not new_path.exists():
+            return new_path
+        counter += 1
+        
+        # Safety limit to prevent infinite loop
+        if counter > 9999:
+            raise ValueError(f"Too many duplicates for {original_path}")
+
+
+def parse_duplicate_handling(duplicate_handling_str: str) -> dict:
+    """
+    Parse duplicate handling string into a dictionary of enabled modes.
+    
+    Args:
+        duplicate_handling_str (str): Comma-separated duplicate handling modes
+        
+    Returns:
+        dict: Dictionary with modes as keys and True as values
+        
+    Example:
+        "redirect,rename" -> {"redirect": True, "rename": True}
+        "skip" -> {"skip": True}
+    """
+    valid_modes = {"skip", "overwrite", "rename", "content", "interactive", "redirect"}
+    
+    # Split by comma and clean up
+    modes = [mode.strip().lower() for mode in duplicate_handling_str.split(",")]
+    
+    # Validate modes
+    for mode in modes:
+        if mode not in valid_modes:
+            raise ValueError(f"Invalid duplicate handling mode: '{mode}'. Valid modes: {', '.join(valid_modes)}")
+    
+    # Check for conflicting modes
+    conflicts = [
+        ("skip", "overwrite"),
+        ("skip", "redirect"),
+        ("skip", "rename"),
+        ("overwrite", "redirect"),
+        ("overwrite", "rename"),
+    ]
+    
+    enabled_modes = set(modes)
+    for mode1, mode2 in conflicts:
+        if mode1 in enabled_modes and mode2 in enabled_modes:
+            raise ValueError(f"Conflicting duplicate handling modes: '{mode1}' and '{mode2}' cannot be used together")
+    
+    return {mode: True for mode in modes}
+
+
+def setup_redirect_directory(target_dir: Path, redirect_dir_name: str, logger) -> Path:
+    """
+    Set up the redirect directory for duplicate files.
+    
+    Args:
+        target_dir (Path): Main target directory
+        redirect_dir_name (str): Name or path of redirect directory
+        logger: Logger instance
+    
+    Returns:
+        Path: Full path to redirect directory
+    """
+    # Handle absolute vs relative paths
+    if Path(redirect_dir_name).is_absolute():
+        redirect_path = Path(redirect_dir_name)
+    else:
+        redirect_path = target_dir / redirect_dir_name
+    
+    # Create redirect directory if it doesn't exist
+    try:
+        redirect_path.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Redirect directory ready: {redirect_path}")
+        return redirect_path
+    except Exception as e:
+        logger.error(f"Failed to create redirect directory {redirect_path}: {e}")
+        raise
 
 
 class TargetHashCache:
@@ -419,6 +557,8 @@ def recursive_walk(
     dryrun=False,
     duplicate_handling="skip",
     no_comprehensive_check=False,
+    redirect_dir="Duplicates",
+    duplicate_keyword="duplicate",
 ):
     """
     Recursively walk through directories and process matching files.
@@ -433,6 +573,8 @@ def recursive_walk(
         dryrun (bool): Whether to simulate operations without making changes
         duplicate_handling (str): How to handle duplicate files
         no_comprehensive_check (bool): Whether to skip comprehensive SHA256 checking
+        redirect_dir (str): Directory for redirected duplicates
+        duplicate_keyword (str): Keyword for duplicate filenames
     
     This function traverses all directories under source_dir, identifying files
     with matching extensions and processing them according to the specified action.
@@ -451,6 +593,11 @@ def recursive_walk(
             logger.info(f"Target directory analysis: {cache_stats['total_files']} files, "
                        f"{cache_stats['unique_hashes']} unique, "
                        f"{cache_stats['duplicate_groups']} duplicate groups found")
+    
+    # Set up redirect directory if needed
+    redirect_path = None
+    if duplicate_handling == "redirect":
+        redirect_path = setup_redirect_directory(destination_dir, redirect_dir, logger)
     
     # Walk through all directories and files recursively
     for folderName, _, filenames in os.walk(source_dir):
@@ -475,6 +622,8 @@ def recursive_walk(
                     dryrun,
                     duplicate_handling,
                     hash_cache,
+                    redirect_path,
+                    duplicate_keyword,
                 )
                 
                 # Report progress periodically
@@ -495,6 +644,8 @@ def moveFile(
     dryrun=False,
     duplicate_handling="skip",
     hash_cache=None,
+    redirect_path=None,
+    duplicate_keyword="duplicate",
 ):
     """
     Move or copy a file to the destination directory, organizing by date.
@@ -509,6 +660,8 @@ def moveFile(
         dryrun (bool): Whether to simulate operations without making changes
         duplicate_handling (str): How to handle duplicate files
         hash_cache (TargetHashCache): Cache for comprehensive duplicate detection
+        redirect_path (Path): Path to redirect directory for duplicates
+        duplicate_keyword (str): Keyword for duplicate filenames
     
     Returns:
         int: 1 if file was processed, 0 otherwise
@@ -622,13 +775,29 @@ def moveFile(
                             # Content mode: skip identical files
                             should_process = False
                             duplicate_action = " [SKIPPED - IDENTICAL CONTENT]"
+                        elif duplicate_handling == "redirect":
+                            # Redirect to duplicate directory with renaming
+                            if redirect_path:
+                                try:
+                                    final_dest_path = generate_unique_duplicate_filename(redirect_path, filename, duplicate_keyword)
+                                    duplicate_action = f" [REDIRECTED TO {redirect_path.name}/{final_dest_path.name}]"
+                                except ValueError as e:
+                                    logger.error(f"Failed to generate redirect filename: {e}")
+                                    return 0
+                            else:
+                                logger.error("Redirect directory not set up for redirect mode")
+                                return 0
                         elif duplicate_handling == "interactive":
                             # Interactive: ask user what to do with comprehensive duplicate
                             print(f"\nIdentical file found in target directory:")
                             print(f"Source: {fullpath}")
                             print(f"Existing: {', '.join(str(p) for p in existing_duplicates)}")
                             while True:
-                                choice = input("(s)kip, (o)verwrite existing, or (r)ename new file? ").lower().strip()
+                                prompt = "(s)kip, (o)verwrite existing, (r)ename new file"
+                                if redirect_path:
+                                    prompt += ", or re(d)irect to duplicate directory"
+                                choice = input(f"{prompt}? ").lower().strip()
+                                
                                 if choice in ['s', 'skip']:
                                     should_process = False
                                     duplicate_action = " [USER CHOSE SKIP - IDENTICAL]"
@@ -646,8 +815,19 @@ def moveFile(
                                     except ValueError as e:
                                         print(f"Error generating unique filename: {e}")
                                         continue
+                                elif choice in ['d', 'redirect'] and redirect_path:
+                                    try:
+                                        final_dest_path = generate_unique_duplicate_filename(redirect_path, filename, duplicate_keyword)
+                                        duplicate_action = f" [USER CHOSE REDIRECT - IDENTICAL: {redirect_path.name}/{final_dest_path.name}]"
+                                        break
+                                    except ValueError as e:
+                                        print(f"Error generating redirect filename: {e}")
+                                        continue
                                 else:
-                                    print("Invalid choice. Please enter s, o, or r.")
+                                    valid_choices = "s, o, r"
+                                    if redirect_path:
+                                        valid_choices += ", d"
+                                    print(f"Invalid choice. Please enter {valid_choices}.")
             
             # Step 2: Traditional filename-based duplicate checking (only if no comprehensive duplicates found)
             if should_process and dest_file_path.exists() and not existing_duplicates:
@@ -699,6 +879,19 @@ def moveFile(
                     else:
                         # Dry run, assume content comparison
                         duplicate_action = " [DRY RUN - WOULD COMPARE CONTENT]"
+                        
+                elif duplicate_handling == "redirect":
+                    # Redirect to duplicate directory with renaming
+                    if redirect_path:
+                        try:
+                            final_dest_path = generate_unique_duplicate_filename(redirect_path, filename, duplicate_keyword)
+                            duplicate_action = f" [REDIRECTED TO {redirect_path.name}/{final_dest_path.name}]"
+                        except ValueError as e:
+                            logger.error(f"Failed to generate redirect filename: {e}")
+                            return 0
+                    else:
+                        logger.error("Redirect directory not set up for redirect mode")
+                        return 0
                         
                 elif duplicate_handling == "interactive":
                     # Prompt user for decision
@@ -884,15 +1077,28 @@ def parse_arguments(args=None):
     
     parser.add_argument(
         "-D", "--duplicate-handling",
-        choices=["skip", "overwrite", "rename", "content", "interactive"],
         default="skip",
-        help="How to handle duplicate files: 'skip' (default, current behavior), 'overwrite' (replace existing), 'rename' (add suffix), 'content' (compare file hashes, skip identical, rename different), 'interactive' (prompt for each)",
+        help="How to handle duplicate files: 'skip' (default, current behavior), 'overwrite' (replace existing), 'rename' (add suffix), 'content' (compare file hashes, skip identical, rename different), 'interactive' (prompt for each), 'redirect' (move duplicates to redirect directory), or comma-separated combinations like 'redirect,rename'",
     )
     
     parser.add_argument(
         "-N", "--no-comprehensive-check",
         action="store_true",
         help="Disable comprehensive SHA256 checking against all existing target files (default: enabled). When disabled, only checks for filename conflicts. Use this for better performance with large target directories.",
+    )
+    
+    parser.add_argument(
+        "-R", "--redirect-dir",
+        default="Duplicates",
+        help="Directory name for redirected duplicate files (default: 'Duplicates'). Created in target root directory. Can be absolute path or relative to target.",
+        metavar="DIR",
+    )
+    
+    parser.add_argument(
+        "-K", "--duplicate-keyword",
+        default="duplicate",
+        help="Keyword to insert in filenames when renaming duplicates (default: 'duplicate'). Used with redirect mode and rename mode.",
+        metavar="WORD",
     )
     
     parser.add_argument(
@@ -979,7 +1185,7 @@ def main(args=None):
 
     # Begin recursive processing of files
     recursive_walk(
-        source_dir, destination_dir, ext_list, action, parsed_args.exifOnly, logger, dryrun, parsed_args.duplicate_handling, parsed_args.no_comprehensive_check
+        source_dir, destination_dir, ext_list, action, parsed_args.exifOnly, logger, dryrun, parsed_args.duplicate_handling, parsed_args.no_comprehensive_check, parsed_args.redirect_dir, parsed_args.duplicate_keyword
     )
 
     # Log script end with MariaDB TIMESTAMP format
