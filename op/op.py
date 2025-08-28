@@ -39,7 +39,22 @@ USAGE EXAMPLES:
 5. Move PNG and JPEG files, verbose logging enabled:
     python op.py -m -v -j png,jpeg Z:\\photosync target/
 
-6. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
+6. Copy files with content-based duplicate detection (skip identical, rename different):
+    python op.py -c --duplicate-handling content -j jpg Z:\\photosync target/
+
+7. Move files with interactive duplicate handling:
+    python op.py -m --duplicate-handling interactive -j jpg Z:\\photosync target/
+
+8. Copy files always renaming duplicates:
+    python op.py -c --duplicate-handling rename -j jpg Z:\\photosync target/
+
+9. Disable comprehensive SHA256 checking for better performance:
+    python op.py -c --no-comprehensive-check -j jpg Z:\\photosync target/
+
+10. Copy with comprehensive duplicate detection (checks against ALL target files):
+    python op.py -c --duplicate-handling content -j jpg Z:\\photosync target/
+
+11. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
 
 See --help for all options.
 """
@@ -52,6 +67,7 @@ import shutil
 import argparse
 from pathlib import Path
 import os
+import hashlib
 
 # Third-party library imports for metadata extraction
 from hachoir.parser import createParser
@@ -63,6 +79,180 @@ config.quiet = True
 
 # Script version information
 myversion = "v. 1.3 Cheesy Dibbles 2025-06-17"
+
+
+def calculate_file_hash(file_path: Path, algorithm: str = 'sha256') -> str:
+    """
+    Calculate hash of a file for content comparison.
+    
+    Args:
+        file_path (Path): Path to the file to hash
+        algorithm (str): Hash algorithm to use (default: sha256)
+    
+    Returns:
+        str: Hexadecimal hash string, or empty string if error
+    """
+    try:
+        hash_obj = hashlib.new(algorithm)
+        with open(file_path, 'rb') as f:
+            # Read file in chunks to handle large files efficiently
+            for chunk in iter(lambda: f.read(8192), b""):
+                hash_obj.update(chunk)
+        return hash_obj.hexdigest()
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Failed to calculate hash for {file_path}: {e}")
+        return ""
+
+
+def generate_unique_filename(dest_file_path: Path) -> Path:
+    """
+    Generate a unique filename by adding a numeric suffix.
+    
+    Args:
+        dest_file_path (Path): Original destination file path
+    
+    Returns:
+        Path: Unique file path with suffix if needed
+    """
+    if not dest_file_path.exists():
+        return dest_file_path
+    
+    base_name = dest_file_path.stem
+    suffix = dest_file_path.suffix
+    parent = dest_file_path.parent
+    counter = 1
+    
+    while True:
+        new_name = f"{base_name}_{counter:03d}{suffix}"
+        new_path = parent / new_name
+        if not new_path.exists():
+            return new_path
+        counter += 1
+        
+        # Safety limit to prevent infinite loop
+        if counter > 9999:
+            raise ValueError(f"Too many duplicates for {dest_file_path}")
+
+
+class TargetHashCache:
+    """
+    Cache for storing and managing SHA256 hashes of files in the target directory.
+    Provides comprehensive duplicate detection across the entire target tree.
+    """
+    
+    def __init__(self, target_dir: Path, logger):
+        self.target_dir = target_dir
+        self.logger = logger
+        # Dictionary mapping hash -> list of file paths with that hash
+        self.hash_to_files = {}
+        # Dictionary mapping file path -> (hash, mtime) for cache invalidation
+        self.file_to_hash_mtime = {}
+        self._build_cache()
+    
+    def _build_cache(self):
+        """Build the initial hash cache by scanning all existing files in target directory."""
+        if not self.target_dir.exists():
+            return
+            
+        self.logger.info("Building comprehensive hash cache of target directory...")
+        cache_count = 0
+        
+        # Recursively walk through target directory
+        for file_path in self.target_dir.rglob('*'):
+            if file_path.is_file():
+                try:
+                    file_hash = calculate_file_hash(file_path)
+                    if file_hash:
+                        file_mtime = file_path.stat().st_mtime
+                        
+                        # Add to hash->files mapping
+                        if file_hash not in self.hash_to_files:
+                            self.hash_to_files[file_hash] = []
+                        self.hash_to_files[file_hash].append(file_path)
+                        
+                        # Add to file->hash mapping with mtime for cache invalidation
+                        self.file_to_hash_mtime[file_path] = (file_hash, file_mtime)
+                        cache_count += 1
+                        
+                        if cache_count % 100 == 0:
+                            self.logger.debug(f"Cached {cache_count} file hashes...")
+                            
+                except Exception as e:
+                    self.logger.warning(f"Failed to hash existing file {file_path}: {e}")
+        
+        self.logger.info(f"Hash cache built: {cache_count} files indexed, {len(self.hash_to_files)} unique hashes")
+    
+    def find_duplicates(self, source_file_path: Path, source_hash: str = None):
+        """
+        Find all files in target directory that have the same hash as source file.
+        
+        Args:
+            source_file_path (Path): Path to source file to check
+            source_hash (str, optional): Pre-calculated hash of source file
+        
+        Returns:
+            list: List of Path objects that are duplicates of the source file
+        """
+        if source_hash is None:
+            source_hash = calculate_file_hash(source_file_path)
+        
+        if not source_hash:
+            return []
+        
+        return self.hash_to_files.get(source_hash, [])
+    
+    def add_file(self, file_path: Path, file_hash: str = None):
+        """
+        Add a newly processed file to the cache.
+        
+        Args:
+            file_path (Path): Path to the file that was added
+            file_hash (str, optional): Pre-calculated hash of the file
+        """
+        if file_hash is None:
+            file_hash = calculate_file_hash(file_path)
+        
+        if file_hash:
+            file_mtime = file_path.stat().st_mtime
+            
+            # Add to hash->files mapping
+            if file_hash not in self.hash_to_files:
+                self.hash_to_files[file_hash] = []
+            self.hash_to_files[file_hash].append(file_path)
+            
+            # Add to file->hash mapping
+            self.file_to_hash_mtime[file_path] = (file_hash, file_mtime)
+    
+    def invalidate_file(self, file_path: Path):
+        """
+        Remove a file from the cache (e.g., if it was deleted or modified).
+        
+        Args:
+            file_path (Path): Path to the file to remove from cache
+        """
+        if file_path in self.file_to_hash_mtime:
+            old_hash, _ = self.file_to_hash_mtime[file_path]
+            
+            # Remove from file->hash mapping
+            del self.file_to_hash_mtime[file_path]
+            
+            # Remove from hash->files mapping
+            if old_hash in self.hash_to_files:
+                try:
+                    self.hash_to_files[old_hash].remove(file_path)
+                    # Clean up empty hash entries
+                    if not self.hash_to_files[old_hash]:
+                        del self.hash_to_files[old_hash]
+                except ValueError:
+                    pass  # File wasn't in the list
+    
+    def get_stats(self):
+        """Return cache statistics."""
+        return {
+            'total_files': len(self.file_to_hash_mtime),
+            'unique_hashes': len(self.hash_to_files),
+            'duplicate_groups': sum(1 for files in self.hash_to_files.values() if len(files) > 1)
+        }
 
 
 def set_up_logging(destination_dir: Path, verbose: bool):
@@ -227,6 +417,8 @@ def recursive_walk(
     exif_only,
     logger,
     dryrun=False,
+    duplicate_handling="skip",
+    no_comprehensive_check=False,
 ):
     """
     Recursively walk through directories and process matching files.
@@ -239,6 +431,8 @@ def recursive_walk(
         exif_only (str): How to handle files without EXIF data
         logger (logging.Logger): Logger for recording operations
         dryrun (bool): Whether to simulate operations without making changes
+        duplicate_handling (str): How to handle duplicate files
+        no_comprehensive_check (bool): Whether to skip comprehensive SHA256 checking
     
     This function traverses all directories under source_dir, identifying files
     with matching extensions and processing them according to the specified action.
@@ -247,6 +441,16 @@ def recursive_walk(
     # Initialize counters for statistics
     total_files = 0
     processed_files = 0
+    
+    # Initialize comprehensive hash cache if enabled
+    hash_cache = None
+    if not no_comprehensive_check:
+        hash_cache = TargetHashCache(destination_dir, logger)
+        cache_stats = hash_cache.get_stats()
+        if cache_stats['total_files'] > 0:
+            logger.info(f"Target directory analysis: {cache_stats['total_files']} files, "
+                       f"{cache_stats['unique_hashes']} unique, "
+                       f"{cache_stats['duplicate_groups']} duplicate groups found")
     
     # Walk through all directories and files recursively
     for folderName, _, filenames in os.walk(source_dir):
@@ -269,6 +473,8 @@ def recursive_walk(
                     exif_only,
                     logger,
                     dryrun,
+                    duplicate_handling,
+                    hash_cache,
                 )
                 
                 # Report progress periodically
@@ -287,6 +493,8 @@ def moveFile(
     exif_only: str,
     logger,
     dryrun=False,
+    duplicate_handling="skip",
+    hash_cache=None,
 ):
     """
     Move or copy a file to the destination directory, organizing by date.
@@ -299,6 +507,8 @@ def moveFile(
         exif_only (str): How to handle files without EXIF data
         logger (logging.Logger): Logger for recording operations
         dryrun (bool): Whether to simulate operations without making changes
+        duplicate_handling (str): How to handle duplicate files
+        hash_cache (TargetHashCache): Cache for comprehensive duplicate detection
     
     Returns:
         int: 1 if file was processed, 0 otherwise
@@ -374,30 +584,195 @@ def moveFile(
             # Define full destination file path
             dest_file_path = destf / filename
             
-            # Only process if destination file doesn't already exist
-            if not dest_file_path.exists():
+            # Handle comprehensive duplicate detection first
+            final_dest_path = dest_file_path
+            should_process = True
+            duplicate_action = ""
+            source_hash = None
+            existing_duplicates = []
+            
+            # Step 1: Comprehensive SHA256 checking against all target files
+            if hash_cache:
+                # Calculate hash of source file for comprehensive checking (even in dry-run)
+                source_hash = calculate_file_hash(fullpath)
+                if source_hash:
+                    existing_duplicates = hash_cache.find_duplicates(fullpath, source_hash)
+                    
+                    if existing_duplicates:
+                        # Found identical file(s) somewhere in target directory
+                        duplicate_paths = [str(p.relative_to(destination_dir)) for p in existing_duplicates]
+                        logger.info(f"  {filename}  {comment:>{space}}    identical to: {', '.join(duplicate_paths)}")
+                        
+                        if duplicate_handling == "skip":
+                            should_process = False
+                            duplicate_action = " [SKIPPED - IDENTICAL FILE EXISTS]"
+                        elif duplicate_handling == "overwrite":
+                            # Remove existing duplicates from cache since we'll overwrite
+                            for dup_path in existing_duplicates:
+                                hash_cache.invalidate_file(dup_path)
+                            duplicate_action = " [OVERWRITING IDENTICAL FILES]"
+                        elif duplicate_handling == "rename":
+                            try:
+                                final_dest_path = generate_unique_filename(dest_file_path)
+                                duplicate_action = f" [RENAMED DUE TO IDENTICAL CONTENT: {final_dest_path.name}]"
+                            except ValueError as e:
+                                logger.error(f"Failed to generate unique filename: {e}")
+                                return 0
+                        elif duplicate_handling == "content":
+                            # Content mode: skip identical files
+                            should_process = False
+                            duplicate_action = " [SKIPPED - IDENTICAL CONTENT]"
+                        elif duplicate_handling == "interactive":
+                            # Interactive: ask user what to do with comprehensive duplicate
+                            print(f"\nIdentical file found in target directory:")
+                            print(f"Source: {fullpath}")
+                            print(f"Existing: {', '.join(str(p) for p in existing_duplicates)}")
+                            while True:
+                                choice = input("(s)kip, (o)verwrite existing, or (r)ename new file? ").lower().strip()
+                                if choice in ['s', 'skip']:
+                                    should_process = False
+                                    duplicate_action = " [USER CHOSE SKIP - IDENTICAL]"
+                                    break
+                                elif choice in ['o', 'overwrite']:
+                                    for dup_path in existing_duplicates:
+                                        hash_cache.invalidate_file(dup_path)
+                                    duplicate_action = " [USER CHOSE OVERWRITE - IDENTICAL]"
+                                    break
+                                elif choice in ['r', 'rename']:
+                                    try:
+                                        final_dest_path = generate_unique_filename(dest_file_path)
+                                        duplicate_action = f" [USER CHOSE RENAME - IDENTICAL: {final_dest_path.name}]"
+                                        break
+                                    except ValueError as e:
+                                        print(f"Error generating unique filename: {e}")
+                                        continue
+                                else:
+                                    print("Invalid choice. Please enter s, o, or r.")
+            
+            # Step 2: Traditional filename-based duplicate checking (only if no comprehensive duplicates found)
+            if should_process and dest_file_path.exists() and not existing_duplicates:
+                if duplicate_handling == "skip":
+                    # Current behavior: skip if file exists
+                    logger.info("  " + filename + " already exists in " + str(destf))
+                    should_process = False
+                    
+                elif duplicate_handling == "overwrite":
+                    # Always overwrite existing files
+                    duplicate_action = " [OVERWRITING]"
+                    
+                elif duplicate_handling == "rename":
+                    # Generate unique filename
+                    try:
+                        final_dest_path = generate_unique_filename(dest_file_path)
+                        duplicate_action = f" [RENAMED TO {final_dest_path.name}]"
+                    except ValueError as e:
+                        logger.error(f"Failed to generate unique filename: {e}")
+                        return 0
+                        
+                elif duplicate_handling == "content":
+                    # Compare file hashes
+                    if not dryrun:  # Only calculate hashes if not dry run
+                        source_hash = calculate_file_hash(fullpath)
+                        dest_hash = calculate_file_hash(dest_file_path)
+                        
+                        if source_hash and dest_hash:
+                            if source_hash == dest_hash:
+                                # Identical content, skip
+                                logger.info(f"  {filename}  {comment:>{space}}    identical content, skipped")
+                                should_process = False
+                            else:
+                                # Different content, rename
+                                try:
+                                    final_dest_path = generate_unique_filename(dest_file_path)
+                                    duplicate_action = f" [DIFFERENT CONTENT, RENAMED TO {final_dest_path.name}]"
+                                except ValueError as e:
+                                    logger.error(f"Failed to generate unique filename: {e}")
+                                    return 0
+                        else:
+                            # Hash calculation failed, fall back to rename
+                            try:
+                                final_dest_path = generate_unique_filename(dest_file_path)
+                                duplicate_action = f" [HASH FAILED, RENAMED TO {final_dest_path.name}]"
+                            except ValueError as e:
+                                logger.error(f"Failed to generate unique filename: {e}")
+                                return 0
+                    else:
+                        # Dry run, assume content comparison
+                        duplicate_action = " [DRY RUN - WOULD COMPARE CONTENT]"
+                        
+                elif duplicate_handling == "interactive":
+                    # Prompt user for decision
+                    print(f"\nDuplicate found: {dest_file_path}")
+                    print(f"Source: {fullpath}")
+                    while True:
+                        choice = input("(s)kip, (o)verwrite, (r)ename, or (c)ompare content? ").lower().strip()
+                        if choice in ['s', 'skip']:
+                            should_process = False
+                            duplicate_action = " [USER CHOSE SKIP]"
+                            break
+                        elif choice in ['o', 'overwrite']:
+                            duplicate_action = " [USER CHOSE OVERWRITE]"
+                            break
+                        elif choice in ['r', 'rename']:
+                            try:
+                                final_dest_path = generate_unique_filename(dest_file_path)
+                                duplicate_action = f" [USER CHOSE RENAME TO {final_dest_path.name}]"
+                                break
+                            except ValueError as e:
+                                print(f"Error generating unique filename: {e}")
+                                continue
+                        elif choice in ['c', 'compare']:
+                            if not dryrun:
+                                source_hash = calculate_file_hash(fullpath)
+                                dest_hash = calculate_file_hash(dest_file_path)
+                                if source_hash and dest_hash and source_hash == dest_hash:
+                                    print("Files have identical content.")
+                                    should_process = False
+                                    duplicate_action = " [IDENTICAL CONTENT, SKIPPED]"
+                                    break
+                                else:
+                                    print("Files have different content.")
+                                    try:
+                                        final_dest_path = generate_unique_filename(dest_file_path)
+                                        duplicate_action = f" [DIFFERENT CONTENT, RENAMED TO {final_dest_path.name}]"
+                                        break
+                                    except ValueError as e:
+                                        print(f"Error generating unique filename: {e}")
+                                        continue
+                            else:
+                                duplicate_action = " [DRY RUN - WOULD COMPARE]"
+                                break
+                        else:
+                            print("Invalid choice. Please enter s, o, r, or c.")
+            
+            if should_process:
                 try:
                     # Perform the actual move or copy operation
                     if not dryrun:
+                        final_dest_dir = final_dest_path.parent
                         if action == "move":
-                            shutil.move(str(fullpath), str(destf))
+                            shutil.move(str(fullpath), str(final_dest_path))
                         else:
-                            shutil.copy2(str(fullpath), str(destf))
+                            shutil.copy2(str(fullpath), str(final_dest_path))
+                        
+                        # Update hash cache with the newly added file
+                        if hash_cache:
+                            # Use the already calculated hash if available
+                            if source_hash is None:
+                                source_hash = calculate_file_hash(final_dest_path)
+                            hash_cache.add_file(final_dest_path, source_hash)
                             
                     # Format timestamp in MariaDB format (YYYY-MM-DD HH:MM:SS)
                     timestamp = cd.strftime("%Y-%m-%d %H:%M:%S")
                     
                     # Log the operation
                     logger.info(
-                        f"  {filename}  {comment:>{space}}  {timestamp} {flagM:>3} {destf}"
+                        f"  {filename}  {comment:>{space}}  {timestamp} {flagM:>3} {final_dest_path.parent}{duplicate_action}"
                         + (" [DRY RUN]" if dryrun else "")
                     )
                 except Exception as e:
-                    logger.error(f"Failed to {flagM} {fullpath} to {destf}: {e}")
+                    logger.error(f"Failed to {flagM} {fullpath} to {final_dest_path}: {e}")
                     return 0
-            else:
-                # Log if file already exists in destination
-                logger.info("  " + filename + " already exists in " + str(destf))
             return 1
         elif exif_only == "fs" and comment.isspace():
             # Skip files with EXIF when exifOnly is "fs" (only process files without EXIF)
@@ -508,6 +883,19 @@ def parse_arguments(args=None):
     )
     
     parser.add_argument(
+        "--duplicate-handling",
+        choices=["skip", "overwrite", "rename", "content", "interactive"],
+        default="skip",
+        help="How to handle duplicate files: 'skip' (default, current behavior), 'overwrite' (replace existing), 'rename' (add suffix), 'content' (compare file hashes, skip identical, rename different), 'interactive' (prompt for each)",
+    )
+    
+    parser.add_argument(
+        "--no-comprehensive-check",
+        action="store_true",
+        help="Disable comprehensive SHA256 checking against all existing target files (default: enabled). When disabled, only checks for filename conflicts. Use this for better performance with large target directories.",
+    )
+    
+    parser.add_argument(
         "--examples",
         action="store_true",
         help="Show usage examples and exit",
@@ -591,7 +979,7 @@ def main(args=None):
 
     # Begin recursive processing of files
     recursive_walk(
-        source_dir, destination_dir, ext_list, action, parsed_args.exifOnly, logger, dryrun
+        source_dir, destination_dir, ext_list, action, parsed_args.exifOnly, logger, dryrun, parsed_args.duplicate_handling, parsed_args.no_comprehensive_check
     )
 
     # Log script end with MariaDB TIMESTAMP format

@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(uv run:*)",
+      "Bash(python:*)",
+      "Bash(pip3 install:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }
