@@ -20,11 +20,16 @@ orgphoto (op) is a Python command-line tool that organizes photos and videos by 
 # Using uv (recommended - handles dependencies automatically)
 uv run op/op.py [options] SOURCE_DIR DEST_DIR
 
-# Using python directly (requires hachoir installed)
+# Using python directly (requires hachoir installed)  
 python op/op.py [options] SOURCE_DIR DEST_DIR
 
 # From main entry point
 uv run main.py  # (currently just prints hello message)
+
+# Examples with short flags:
+uv run op/op.py -c -D content -j jpg source/ target/        # Content-based duplicates
+uv run op/op.py -m -D interactive -j jpg source/ target/    # Interactive mode
+uv run op/op.py -c -N -j jpg source/ target/                # Disable comprehensive check
 ```
 
 ### Development setup
@@ -58,7 +63,7 @@ The application processes images and videos with these key features:
   - `rename` - Add numeric suffix to duplicates (e.g., `photo_001.jpg`)
   - `content` - Compare file hashes; skip identical content, rename different content
   - `interactive` - Prompt user for each duplicate
-- **Performance control**: Use `--no-comprehensive-check` to disable comprehensive checking for large target directories
+- **Performance control**: Use `-N` or `--no-comprehensive-check` to disable comprehensive checking for large target directories
 - **Hash caching**: Builds and maintains an in-memory hash database of target files for efficient duplicate detection
 - **Extensible formats**: Supports all file types recognized by hachoir library
 - **Detailed logging**: Progress reporting and operation logging to destination directory

@@ -40,19 +40,19 @@ USAGE EXAMPLES:
     python op.py -m -v -j png,jpeg Z:\\photosync target/
 
 6. Copy files with content-based duplicate detection (skip identical, rename different):
-    python op.py -c --duplicate-handling content -j jpg Z:\\photosync target/
+    python op.py -c -D content -j jpg Z:\\photosync target/
 
 7. Move files with interactive duplicate handling:
-    python op.py -m --duplicate-handling interactive -j jpg Z:\\photosync target/
+    python op.py -m -D interactive -j jpg Z:\\photosync target/
 
 8. Copy files always renaming duplicates:
-    python op.py -c --duplicate-handling rename -j jpg Z:\\photosync target/
+    python op.py -c -D rename -j jpg Z:\\photosync target/
 
 9. Disable comprehensive SHA256 checking for better performance:
-    python op.py -c --no-comprehensive-check -j jpg Z:\\photosync target/
+    python op.py -c -N -j jpg Z:\\photosync target/
 
 10. Copy with comprehensive duplicate detection (checks against ALL target files):
-    python op.py -c --duplicate-handling content -j jpg Z:\\photosync target/
+    python op.py -c -D content -j jpg Z:\\photosync target/
 
 11. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
 
@@ -883,14 +883,14 @@ def parse_arguments(args=None):
     )
     
     parser.add_argument(
-        "--duplicate-handling",
+        "-D", "--duplicate-handling",
         choices=["skip", "overwrite", "rename", "content", "interactive"],
         default="skip",
         help="How to handle duplicate files: 'skip' (default, current behavior), 'overwrite' (replace existing), 'rename' (add suffix), 'content' (compare file hashes, skip identical, rename different), 'interactive' (prompt for each)",
     )
     
     parser.add_argument(
-        "--no-comprehensive-check",
+        "-N", "--no-comprehensive-check",
         action="store_true",
         help="Disable comprehensive SHA256 checking against all existing target files (default: enabled). When disabled, only checks for filename conflicts. Use this for better performance with large target directories.",
     )
