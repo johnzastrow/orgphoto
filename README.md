@@ -57,7 +57,7 @@ From the packaged .exe. But the script is the same code.
 ```bash
 C:\Users\user\Github\orgphoto\output>op.exe -h
 usage: op.exe [-h] [-m | -c] [-j EXT] [-v] [-x {yes,no,fs}] [-d] 
-              [-D {skip,overwrite,rename,content,interactive}] [-N] [--examples] 
+              [-D DUPLICATE_HANDLING] [-N] [-R DIR] [-K WORD] [--examples] 
               SOURCE_DIR DEST_DIR
 
 Organize and copy/move photos and videos by date
@@ -76,10 +76,14 @@ options:
                         'yes': skip files with no EXIF, 'no': process all files (fallback to filesystem date), 'fs': only process
                         files with no EXIF [default: yes]
   -d, --dryrun          Dry run mode: simulate actions, do not move/copy files
-  -D, --duplicate-handling {skip,overwrite,rename,content,interactive}
-                        How to handle duplicate files [default: skip]
+  -D, --duplicate-handling DUPLICATE_HANDLING
+                        How to handle duplicates: skip, overwrite, rename, content, interactive, redirect [default: skip]
   -N, --no-comprehensive-check
                         Disable comprehensive SHA256 checking for better performance
+  -R, --redirect-dir DIR
+                        Directory for redirected duplicates [default: Duplicates]
+  -K, --duplicate-keyword WORD
+                        Keyword for duplicate filenames [default: duplicate]
   --examples            Show usage examples and exit
 
 If neither --move nor --copy is specified, the script will prompt to run in dryrun mode simulating moving files.
@@ -171,6 +175,86 @@ USAGE EXAMPLES:
 
 See `python op.py --help` or `python op.py --examples` for all options.
 
+## REDIRECT DUPLICATE HANDLING
+
+The redirect mode provides sophisticated duplicate management by moving duplicate files to a separate directory structure while maintaining organization and applying intelligent renaming.
+
+### How Redirect Mode Works
+
+When `--duplicate-handling redirect` (or `-D redirect`) is used:
+
+1. **Directory Creation**: Creates a redirect directory (default: `Duplicates/` in target root)
+2. **Duplicate Detection**: Uses comprehensive SHA-256 checking or filename-based detection  
+3. **Intelligent Redirection**: Moves duplicates to redirect directory with smart renaming
+4. **Organized Structure**: Maintains date-based organization within redirect directory
+
+### Redirect Directory Structure
+
+```
+target/
+├── 2023_01_01/           # Main organized files
+│   ├── photo1.jpg
+│   └── photo2.jpg
+├── 2023_01_02/
+│   └── photo3.jpg
+└── Duplicates/           # Redirect directory
+    ├── 2023_01_01/
+    │   ├── photo1_duplicate.jpg      # Duplicate of main photo1.jpg
+    │   └── photo1_duplicate_001.jpg  # Another copy of photo1.jpg
+    └── 2023_01_02/
+        └── photo3_copy.jpg           # Custom keyword example
+```
+
+### Configuration Options
+
+| Option | Short | Default | Description |
+|--------|-------|---------|-------------|
+| `--redirect-dir` | `-R` | `Duplicates` | Directory name for redirected duplicates |
+| `--duplicate-keyword` | `-K` | `duplicate` | Keyword inserted in duplicate filenames |
+
+### Redirect Examples
+
+**Basic redirect usage**:
+```bash
+python op.py -c -D redirect -j jpg source/ target/
+# Creates: target/Duplicates/YYYY_MM_DD/filename_duplicate.jpg
+```
+
+**Custom redirect directory**:
+```bash  
+python op.py -c -D redirect -R Archive/Duplicates -j jpg source/ target/
+# Creates: target/Archive/Duplicates/YYYY_MM_DD/filename_duplicate.jpg
+```
+
+**Custom duplicate keyword**:
+```bash
+python op.py -c -D redirect -K copy -j jpg source/ target/  
+# Creates: target/Duplicates/YYYY_MM_DD/filename_copy.jpg
+```
+
+**Absolute path redirect**:
+```bash
+python op.py -c -D redirect -R /backup/duplicates -j jpg source/ target/
+# Creates: /backup/duplicates/YYYY_MM_DD/filename_duplicate.jpg
+```
+
+### Filename Handling
+
+Redirect mode uses intelligent filename generation:
+
+1. **Base duplicate name**: `filename_duplicate.ext`
+2. **If name exists**: `filename_duplicate_001.ext`  
+3. **Multiple duplicates**: `filename_duplicate_002.ext`, `filename_duplicate_003.ext`, etc.
+4. **Custom keyword**: `filename_copy.ext` (with `-K copy`)
+
+### Integration Features
+
+- **Works with comprehensive checking**: Detects true content duplicates via SHA-256
+- **Works with filename conflicts**: Handles traditional duplicate scenarios
+- **Interactive mode support**: User can choose redirect option when prompted
+- **Dry-run compatible**: Shows what would be redirected without making changes
+- **Logging integration**: Clear indication of redirect actions in log files
+
 PERFORMANCE CONSIDERATIONS
 --------------------------
 
@@ -205,6 +289,17 @@ Use the `-N` flag to disable comprehensive checking if:
 3. **For maximum safety**: Use default settings (comprehensive checking enabled)
 4. **For interactive control**: Use `-D interactive` to decide per-duplicate
 5. **For dry runs**: Comprehensive checking works in dry-run mode too
+6. **For redirect mode**: Redirect has minimal overhead; directory creation is fast
+
+### Redirect Mode Performance
+
+Redirect mode (`-D redirect`) has minimal performance impact:
+
+- **Directory creation**: Negligible overhead for creating redirect directory structure
+- **File operations**: Same performance as other modes (copy/move operations)
+- **Filename generation**: Fast algorithm for unique name generation with safety limits
+- **Memory usage**: No additional memory overhead beyond normal operations
+- **Works efficiently** with both comprehensive checking and filename-only modes
 
 The hash cache provides excellent performance for most use cases, typically processing hundreds of files per minute even with comprehensive checking enabled.
 
@@ -232,11 +327,17 @@ This is the command I used to build the .exe, though I cheated by using the UI
 ``` pyinstaller --noconfirm --onefile --console --icon "C:\Github\orgphoto\doc\favicon.ico"  "C:\Github\orgphoto\op\op.py" ```
 
 
-Here's an example of running the built .exe in Windows, where op.exe is asked to Move all files even if No eXif data is found (ahem heic files), move files of extensions (case-insensitive) jpg,png,jpeg,heic,mov, from `src1` (and its sub directories) to `target` into folders by date, with content-based duplicate detection:
+Here's an example of running the built .exe in Windows, where op.exe is asked to Move all files even if No eXif data is found (ahem heic files), move files of extensions (case-insensitive) jpg,png,jpeg,heic,mov, from `src1` (and its sub directories) to `target` into folders by date:
 
 ```bash
 # With comprehensive duplicate detection (default)
 op.exe -m -x no -j jpg,png,jpeg,heic,mov C:\Users\user\Github\orgphoto\testing\src1 C:\Users\user\Github\orgphoto\testing\target
+
+# Redirect duplicates to separate folder
+op.exe -m -x no -D redirect -j jpg,png,jpeg,heic,mov C:\Users\user\Github\orgphoto\testing\src1 C:\Users\user\Github\orgphoto\testing\target
+
+# Custom redirect directory and duplicate keyword
+op.exe -m -x no -D redirect -R Archive\Duplicates -K copy -j jpg,png,jpeg,heic,mov C:\Users\user\Github\orgphoto\testing\src1 C:\Users\user\Github\orgphoto\testing\target
 
 # For faster processing on large target directories
 op.exe -m -x no -N -D rename -j jpg,png,jpeg,heic,mov C:\Users\user\Github\orgphoto\testing\src1 C:\Users\user\Github\orgphoto\testing\target

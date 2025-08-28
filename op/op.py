@@ -1078,7 +1078,7 @@ def parse_arguments(args=None):
     parser.add_argument(
         "-D", "--duplicate-handling",
         default="skip",
-        help="How to handle duplicate files: 'skip' (default, current behavior), 'overwrite' (replace existing), 'rename' (add suffix), 'content' (compare file hashes, skip identical, rename different), 'interactive' (prompt for each), 'redirect' (move duplicates to redirect directory), or comma-separated combinations like 'redirect,rename'",
+        help="How to handle duplicates: skip, overwrite, rename, content, interactive, redirect [default: skip]",
     )
     
     parser.add_argument(
