@@ -547,6 +547,160 @@ def normalize_extensions(ext_string: str):
     ]
 
 
+def handle_file_operation(
+    source_path: Path, dest_path: Path, action: str, duplicate_handling: str,
+    hash_cache, redirect_path: Path, duplicate_keyword: str,
+    dryrun: bool, logger, creation_date, comment: str, space: int, filename: str, flag_action: str
+):
+    """
+    Handle file operation with comprehensive duplicate detection and various handling modes.
+    
+    Returns:
+        int: 1 if file was processed successfully, 0 otherwise
+    """
+    duplicate_action = ""
+    
+    # Check for filename-based duplicates
+    filename_exists = dest_path.exists()
+    
+    # Check for content-based duplicates using hash cache (if enabled)
+    content_duplicates = []
+    source_hash = None
+    if hash_cache:
+        source_hash = calculate_file_hash(source_path)
+        if source_hash:
+            content_duplicates = hash_cache.find_duplicates(source_path, source_hash)
+    
+    # Determine if we have any kind of duplicate
+    has_filename_duplicate = filename_exists
+    has_content_duplicate = len(content_duplicates) > 0
+    
+    # Handle different duplicate scenarios based on mode
+    final_dest_path = dest_path
+    
+    if has_filename_duplicate or has_content_duplicate:
+        if duplicate_handling == "skip":
+            duplicate_action = " [SKIPPED - duplicate]"
+            logger.info(f"  {filename}  {comment:>{space}}    skipped - duplicate detected")
+            return 0
+            
+        elif duplicate_handling == "overwrite":
+            duplicate_action = " [OVERWRITTEN]"
+            # Proceed with original dest_path - will overwrite
+            
+        elif duplicate_handling == "rename":
+            final_dest_path = generate_unique_duplicate_filename(dest_path.parent, filename, duplicate_keyword)
+            duplicate_action = f" [RENAMED -> {final_dest_path.name}]"
+            
+        elif duplicate_handling == "content":
+            if has_content_duplicate:
+                # Identical content - skip
+                duplicate_action = " [SKIPPED - identical content]"
+                logger.info(f"  {filename}  {comment:>{space}}    skipped - identical content")
+                return 0
+            elif has_filename_duplicate:
+                # Same filename, different content - rename
+                final_dest_path = generate_unique_duplicate_filename(dest_path.parent, filename, duplicate_keyword)
+                duplicate_action = f" [RENAMED - different content -> {final_dest_path.name}]"
+                
+        elif duplicate_handling == "interactive":
+            choice = prompt_user_for_duplicate_action(
+                source_path, dest_path, has_content_duplicate, content_duplicates, logger
+            )
+            if choice == "skip":
+                duplicate_action = " [SKIPPED - user choice]"
+                logger.info(f"  {filename}  {comment:>{space}}    skipped - user choice")
+                return 0
+            elif choice == "overwrite":
+                duplicate_action = " [OVERWRITTEN - user choice]"
+            elif choice == "rename":
+                final_dest_path = generate_unique_duplicate_filename(dest_path.parent, filename, duplicate_keyword)
+                duplicate_action = f" [RENAMED - user choice -> {final_dest_path.name}]"
+            elif choice == "redirect":
+                if not redirect_path:
+                    redirect_path = setup_redirect_directory(dest_path.parent.parent, "Duplicates", logger)
+                final_dest_path = redirect_path / filename
+                if final_dest_path.exists():
+                    final_dest_path = generate_unique_duplicate_filename(redirect_path, filename, duplicate_keyword)
+                duplicate_action = f" [REDIRECTED - user choice -> {final_dest_path}]"
+                
+        elif duplicate_handling == "redirect":
+            if not redirect_path:
+                redirect_path = setup_redirect_directory(dest_path.parent.parent, "Duplicates", logger)
+            final_dest_path = redirect_path / filename
+            if final_dest_path.exists():
+                final_dest_path = generate_unique_duplicate_filename(redirect_path, filename, duplicate_keyword)
+            duplicate_action = f" [REDIRECTED -> {final_dest_path}]"
+
+    # Perform the actual file operation
+    try:
+        if not dryrun:
+            # Ensure destination directory exists
+            final_dest_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            if action == "move":
+                shutil.move(str(source_path), str(final_dest_path))
+            else:
+                shutil.copy2(str(source_path), str(final_dest_path))
+            
+            # Update hash cache with new file (if enabled)
+            if hash_cache and source_hash:
+                hash_cache.add_file(final_dest_path, source_hash)
+
+        # Format timestamp in MariaDB format (YYYY-MM-DD HH:MM:SS)
+        timestamp = creation_date.strftime("%Y-%m-%d %H:%M:%S")
+
+        # Log the operation
+        logger.info(
+            f"  {filename}  {comment:>{space}}  {timestamp} {flag_action:>3} {final_dest_path.parent}{duplicate_action}"
+            + (" [DRY RUN]" if dryrun else "")
+        )
+        
+        return 1
+        
+    except Exception as e:
+        logger.error(f"Failed to {flag_action} {source_path} to {final_dest_path}: {e}")
+        return 0
+
+
+def prompt_user_for_duplicate_action(source_path: Path, dest_path: Path, has_content_duplicate: bool, content_duplicates: list, logger):
+    """
+    Prompt user interactively for how to handle a duplicate file.
+    
+    Returns:
+        str: User's choice - 'skip', 'overwrite', 'rename', or 'redirect'
+    """
+    print(f"\nDuplicate detected for: {source_path.name}")
+    print(f"Target location: {dest_path}")
+    
+    if has_content_duplicate:
+        print("Content duplicates found at:")
+        for dup_path in content_duplicates:
+            print(f"  - {dup_path}")
+    
+    if dest_path.exists():
+        print(f"Filename conflict at: {dest_path}")
+    
+    while True:
+        print("\nChoose action:")
+        print("  s) Skip this file")
+        print("  o) Overwrite existing file(s)")
+        print("  r) Rename with suffix")
+        print("  R) Redirect to duplicates directory")
+        choice = input("Your choice [s/o/r/R]: ").lower().strip()
+        
+        if choice in ['s', 'skip']:
+            return 'skip'
+        elif choice in ['o', 'overwrite']:
+            return 'overwrite'
+        elif choice in ['r', 'rename']:
+            return 'rename'
+        elif choice in ['R', 'redirect']:
+            return 'redirect'
+        else:
+            print("Invalid choice. Please enter s, o, r, or R.")
+
+
 def recursive_walk(
     source_dir: Path,
     destination_dir: Path,
@@ -559,6 +713,7 @@ def recursive_walk(
     no_comprehensive_check=False,
     redirect_dir="Duplicates",
     duplicate_keyword="duplicate",
+    hash_cache=None,
 ):
     """
     Recursively walk through directories and process matching files.
@@ -576,6 +731,11 @@ def recursive_walk(
     with matching extensions and processing them according to the specified action.
     It keeps track of statistics and reports progress.
     """
+    # Initialize redirect path if using redirect duplicate handling
+    redirect_path = None
+    if duplicate_handling == "redirect":
+        redirect_path = setup_redirect_directory(destination_dir, redirect_dir, logger)
+    
     # Initialize counters for statistics
     total_files = 0
     processed_files = 0
@@ -647,6 +807,9 @@ def moveFile(
     or file system), creates a destination folder based on the date, and
     then copies or moves the file to that destination.
     """
+    # Initialize duplicate action tracking
+    duplicate_action = ""
+    
     # Construct full path to the file
     fullpath = folder / filename
 
@@ -713,30 +876,13 @@ def moveFile(
 
             # Define full destination file path
             dest_file_path = destf / filename
-
-            # Only process if destination file doesn't already exist
-            if not dest_file_path.exists():
-                try:
-                    # Perform the actual move or copy operation
-                    if not dryrun:
-                        final_dest_dir = final_dest_path.parent
-                        if action == "move":
-                            shutil.move(str(fullpath), str(final_dest_path))
-                        else:
-                            shutil.copy2(str(fullpath), str(destf))
-
-                    # Format timestamp in MariaDB format (YYYY-MM-DD HH:MM:SS)
-                    timestamp = cd.strftime("%Y-%m-%d %H:%M:%S")
-
-                    # Log the operation
-                    logger.info(
-                        f"  {filename}  {comment:>{space}}  {timestamp} {flagM:>3} {final_dest_path.parent}{duplicate_action}"
-                        + (" [DRY RUN]" if dryrun else "")
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to {flagM} {fullpath} to {final_dest_path}: {e}")
-                    return 0
-            return 1
+            
+            # Comprehensive duplicate detection and handling
+            return handle_file_operation(
+                fullpath, dest_file_path, action, duplicate_handling, 
+                hash_cache, redirect_path, duplicate_keyword, 
+                dryrun, logger, cd, comment, space, filename, flagM
+            )
         elif exif_only == "fs" and comment.isspace():
             # Skip files with EXIF when exifOnly is "fs" (only process files without EXIF)
             logger.info(f"  {filename}  {comment:>{space}}    skipped")
@@ -858,6 +1004,38 @@ def parse_arguments(args=None):
     )
 
     parser.add_argument(
+        "-D",
+        "--duplicate-handling",
+        default="skip",
+        help="Duplicate handling mode: skip, overwrite, rename, content, interactive, redirect [default: skip]",
+        dest="duplicate_handling",
+    )
+
+    parser.add_argument(
+        "-N",
+        "--no-comprehensive-check",
+        action="store_true",
+        help="Disable comprehensive SHA-256 checking against all existing files (improves performance for large target directories)",
+        dest="no_comprehensive_check",
+    )
+
+    parser.add_argument(
+        "-R",
+        "--redirect-dir",
+        default="Duplicates",
+        help="Custom directory name for redirect duplicate handling [default: Duplicates]",
+        dest="redirect_dir",
+    )
+
+    parser.add_argument(
+        "-K",
+        "--duplicate-keyword",
+        default="duplicate",
+        help="Custom keyword for duplicate file renaming [default: duplicate]",
+        dest="duplicate_keyword",
+    )
+
+    parser.add_argument(
         "--examples",
         action="store_true",
         help="Show usage examples and exit",
@@ -939,6 +1117,11 @@ def main(args=None):
         logger.error(f"Failed to create destination directory {destination_dir}: {e}")
         sys.exit(1)
 
+    # Initialize hash cache for comprehensive duplicate detection (unless disabled)
+    hash_cache = None
+    if not parsed_args.no_comprehensive_check:
+        hash_cache = TargetHashCache(destination_dir, logger)
+    
     # Begin recursive processing of files
     recursive_walk(
         source_dir,
@@ -948,6 +1131,11 @@ def main(args=None):
         parsed_args.exifOnly,
         logger,
         dryrun,
+        duplicate_handling=parsed_args.duplicate_handling,
+        no_comprehensive_check=parsed_args.no_comprehensive_check,
+        redirect_dir=parsed_args.redirect_dir,
+        duplicate_keyword=parsed_args.duplicate_keyword,
+        hash_cache=hash_cache,
     )
 
     # Log script end with MariaDB TIMESTAMP format
