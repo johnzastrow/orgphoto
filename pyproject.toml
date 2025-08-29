@@ -8,3 +8,8 @@ dependencies = [
     "auto-py-to-exe>=2.46.0",
     "hachoir>=3.3.0",
 ]
+
+[tool.uv.workspace]
+members = [
+    "op",
+]
