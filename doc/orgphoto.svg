@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="1024"
+   height="1024"
+   viewBox="0 0 1024 1024"
+   version="1.1"
+   id="svg9"
+   sodipodi:docname="orgphoto.svg"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs9">
+    <filter
+       inkscape:label="Torn Edges"
+       inkscape:menu="Distort"
+       inkscape:menu-tooltip="Displace the outside of shapes and pictures without altering their content"
+       height="1"
+       y="0"
+       width="1"
+       x="0"
+       style="color-interpolation-filters:sRGB;"
+       id="filter12">
+      <feTurbulence
+         baseFrequency="0.05"
+         numOctaves="5"
+         type="fractalNoise"
+         result="result91"
+         id="feTurbulence12" />
+      <feDisplacementMap
+         scale="25"
+         result="result5"
+         xChannelSelector="R"
+         in="SourceGraphic"
+         in2="result91"
+         id="feDisplacementMap12" />
+      <feComposite
+         in="SourceGraphic"
+         operator="atop"
+         in2="result5"
+         id="feComposite12" />
+    </filter>
+    <filter
+       inkscape:label="Chalk and Sponge"
+       inkscape:menu="Distort"
+       inkscape:menu-tooltip="Low turbulence gives sponge look and high turbulence chalk"
+       height="1"
+       y="0"
+       width="1"
+       x="0"
+       style="color-interpolation-filters:sRGB;"
+       id="filter13">
+      <feTurbulence
+         baseFrequency="0.05"
+         numOctaves="5"
+         type="fractalNoise"
+         result="result91"
+         id="feTurbulence13" />
+      <feDisplacementMap
+         scale="25"
+         result="result5"
+         xChannelSelector="R"
+         in="SourceGraphic"
+         in2="result91"
+         id="feDisplacementMap13" />
+      <feComposite
+         in="SourceGraphic"
+         operator="atop"
+         in2="result5"
+         id="feComposite13"
+         result="fbSourceGraphic" />
+      <feColorMatrix
+         result="fbSourceGraphicAlpha"
+         in="fbSourceGraphic"
+         values="0 0 0 -1 0 0 0 0 -1 0 0 0 0 -1 0 0 0 0 1 0"
+         id="feColorMatrix14" />
+      <feTurbulence
+         id="feTurbulence15"
+         baseFrequency="0.4"
+         type="fractalNoise"
+         seed="0"
+         numOctaves="5"
+         result="result1"
+         in="fbSourceGraphic" />
+      <feDisplacementMap
+         id="feDisplacementMap15"
+         xChannelSelector="R"
+         yChannelSelector="G"
+         scale="30"
+         in="fbSourceGraphic"
+         in2="result1" />
+    </filter>
+    <filter
+       inkscape:label="Lapping"
+       inkscape:menu="Distort"
+       inkscape:menu-tooltip="Something like a water noise"
+       height="1.0554548"
+       y="-0.02772739"
+       width="1.0564608"
+       x="-0.028230383"
+       style="color-interpolation-filters:sRGB;"
+       id="filter14">
+      <feTurbulence
+         numOctaves="5"
+         seed="0"
+         type="fractalNoise"
+         baseFrequency="0.1"
+         result="result1"
+         id="feTurbulence14" />
+      <feGaussianBlur
+         stdDeviation="2"
+         result="result2"
+         id="feGaussianBlur14" />
+      <feDisplacementMap
+         scale="50"
+         yChannelSelector="B"
+         xChannelSelector="R"
+         in="SourceGraphic"
+         in2="result2"
+         id="feDisplacementMap14" />
+    </filter>
+    <filter
+       inkscape:label="Leaves"
+       inkscape:menu="Scatter"
+       inkscape:menu-tooltip="Leaves on the ground in Fall, or living foliage"
+       style="color-interpolation-filters:sRGB;"
+       id="filter17"
+       x="-0.035454271"
+       y="-0.034915494"
+       width="1.0709085"
+       height="1.069831">
+      <feTurbulence
+         baseFrequency="0.09"
+         numOctaves="5"
+         type="fractalNoise"
+         result="result6"
+         id="feTurbulence16" />
+      <feColorMatrix
+         values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 4.9 -2.9 "
+         result="result5"
+         in="result6"
+         id="feColorMatrix16" />
+      <feComposite
+         in2="result5"
+         operator="in"
+         in="SourceGraphic"
+         id="feComposite16" />
+      <feMorphology
+         result="result3"
+         radius="6"
+         operator="dilate"
+         id="feMorphology16" />
+      <feTurbulence
+         baseFrequency="0.2"
+         numOctaves="1"
+         type="fractalNoise"
+         result="result91"
+         id="feTurbulence17" />
+      <feDisplacementMap
+         result="result4"
+         scale="15"
+         yChannelSelector="G"
+         xChannelSelector="R"
+         in="result3"
+         in2="result91"
+         id="feDisplacementMap17" />
+      <feComposite
+         in2="result4"
+         operator="arithmetic"
+         result="result2"
+         k1="0.5"
+         k3="1"
+         id="feComposite17" />
+      <feConvolveMatrix
+         order="3 3"
+         kernelMatrix="1 0 0 0 2 0 0 0 -1 "
+         targetX="0"
+         targetY="0"
+         divisor="1.5"
+         edgeMode="duplicate"
+         in="result2"
+         id="feConvolveMatrix17" />
+    </filter>
+  </defs>
+  <sodipodi:namedview
+     id="namedview9"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="1.1318359"
+     inkscape:cx="512"
+     inkscape:cy="512"
+     inkscape:window-width="2560"
+     inkscape:window-height="1369"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg9" />
+  <path
+     d="m 453.999,453.753 c 3.764,-4.587 6.928,-9.713 9.682,-14.959 14.172,-27.003 16.214,-57.505 6.992,-86.398 -8.991,-27.788 -27.909,-51.288 -53.137,-66.005 -3.731,-2.135 -7.704,-4.303 -11.696,-5.91 -3.042,-1.224 -6.199,-2.051 -9.119,-3.565 l -0.215,-0.703 1.577,-0.577 c 20.956,0.602 31.349,-0.223 51.981,7.708 26.322,10.118 50.305,30.48 61.861,56.481 7.062,-14.695 16.844,-27.432 29.507,-37.711 23.494,-19.069 55.675,-29.089 85.907,-25.889 -6.618,2.61 -13.158,5.087 -19.305,8.726 -28.632,16.717 -49.299,44.288 -57.313,76.46 -0.688,2.838 -1.247,5.706 -1.673,8.596 -4.727,31.45 2.412,58.187 21.086,83.581 -38.232,0.711 -77.953,1.08 -116.135,0.165 z"
+     id="path2" />
+  <path
+     d="M589.243 436.334C588.097 391.726 596.901 351.833 627.212 317.686C656.691 284.478 696.853 266.697 740.865 264.229C746.721 263.937 752.657 264.133 758.523 264.152C758.597 274.95 758.998 285.916 757.913 296.669C754.688 328.606 741.107 361.09 719.62 385.059C688.753 419.491 652.546 433.217 607.282 435.832C601.287 436.179 595.248 436.198 589.243 436.334Z"
+     id="path3"
+     style="filter:url(#filter13);fill:#268bd2" />
+  <path
+     d="M434.665 435.523C428.603 435.234 422.453 435.525 416.379 435.468C375.826 435.085 337.626 419.473 309.229 390.321C287.241 367.748 271.587 336.479 267.239 305.222C265.35 291.642 265.505 278.14 265.631 264.474C270.384 264.336 275.138 264.282 279.892 264.313C322.109 264.928 361.063 280.846 390.544 311.298C425.1 346.993 435.426 387.097 434.665 435.523Z"
+     id="path4"
+     style="filter:url(#filter12);fill:#d33682" />
+  <path
+     d="m 567.413,453.361 c 8.196,6.224 16.804,11.33 26.437,15.014 29.179,11.158 60.169,9.412 88.499,-3.384 29.115,-13.15 50.639,-36.931 61.812,-66.678 0.926,2.284 0.586,6.141 0.573,8.61 -0.08,15.638 -2.133,31.402 -7.986,45.986 -8.173,20.364 -23.415,39.504 -42.215,51.01 -5.892,3.606 -12.264,6.355 -18.614,9.036 15.328,4.494 29.983,15.257 40.666,26.908 24.205,26.4 29.176,54.798 27.739,89.242 -2.406,-6.946 -5.121,-13.7 -8.621,-20.177 -14.836,-27.453 -39.1,-46.614 -68.882,-55.62 -2.564,-0.704 -5.143,-1.357 -7.733,-1.958 -24.159,-5.382 -50.793,-2.074 -73.086,8.584 -6.516,3.116 -12.491,6.997 -18.564,10.88 l -0.178,-72.376 c -0.035,-14.996 -0.467,-30.101 0.153,-45.077 z"
+     id="path5" />
+  <path
+     d="m 347.617,512.203 c -15.395,-7.099 -28.503,-14.974 -40.127,-27.544 -20.998,-22.708 -29.805,-52.312 -28.495,-82.92 1.856,1.192 6.081,11.702 7.599,14.309 1.585,2.724 3.604,5.329 5.433,7.9 18.86,26.508 46.339,45.108 78.69,50.453 31.246,5.162 59.685,-3.237 85.039,-21.478 l 0.118,75.265 c -0.008,14.597 0.526,29.446 -0.267,44.013 -2.752,-2.901 -6.195,-5.26 -9.537,-7.432 -25.288,-16.433 -55.32,-19.315 -84.273,-13.085 -5.386,1.28 -10.661,2.988 -15.774,5.109 -30.582,12.872 -54.746,37.442 -67.107,68.234 -0.476,-15.791 1.252,-32.592 6.558,-47.521 10.854,-30.536 33.365,-51.672 62.143,-65.303 z"
+     id="path6" />
+  <path
+     d="m 396.72,748.868 c 21.42,-8.121 41.624,-21.576 55.5,-40.024 24.895,-33.097 31.562,-77.263 15.145,-115.663 -2.125,-4.971 -4.7,-10.31 -7.598,-14.872 -1.483,-2.336 -4.635,-5.338 -5.027,-8.128 l 0.997,-0.427 c 37.71,-0.929 75.644,-0.109 113.369,0.181 -4.395,7.889 -9.366,15.017 -12.79,23.455 -11.941,28.679 -11.898,60.947 0.122,89.594 13.623,32.103 40.546,53.79 72.276,66.542 -7.941,-1.116 -16.155,-0.328 -24.166,-1.031 -25.914,-2.272 -47.576,-13.718 -67.211,-30.178 -10.346,-8.448 -19.769,-19.993 -26.663,-31.307 -5.782,11.778 -14.602,23.309 -24.195,32.17 -25.367,23.435 -55.947,31.04 -89.759,29.688 z"
+     id="path7" />
+  <path
+     d="M266.375 760.511L265.465 760.376L264.887 759.548C265.011 747.818 264.823 736.35 266.201 724.666C270.083 691.748 285.142 659.074 308.31 635.253C332.578 610.3 363.775 594.282 398.429 590.141C409.709 588.793 421.118 588.896 432.462 588.749L433.307 588.764C434.495 590.487 434.032 600.419 434.022 603.055C433.86 646.248 419.056 684.511 388.15 715.038C360.795 742.058 323.83 757.379 285.713 760.273C279.303 760.76 272.8 760.558 266.375 760.511Z"
+     id="path8"
+     style="filter:url(#filter17);fill:#cb4b16" />
+  <path
+     d="M759.292 761.918C755.195 762.04 751.096 762.007 747.002 761.819C733.67 761.279 719.927 759.867 707 756.461C677.926 748.801 649.457 730.561 629.211 708.552C597.754 674.355 587.612 634.151 589.529 588.876L594.644 588.938C641.265 589.63 682.378 600.666 715.75 635.252C750.464 671.228 760.065 713.444 759.292 761.918Z"
+     id="path9"
+     style="filter:url(#filter14);fill:#6c71c4" />
+</svg>
