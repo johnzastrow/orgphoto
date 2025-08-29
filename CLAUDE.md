@@ -32,6 +32,8 @@ uv run op/op.py -m -D interactive -j jpg source/ target/    # Interactive mode
 uv run op/op.py -c -D redirect -j jpg source/ target/       # Redirect duplicates
 uv run op/op.py -c -N -j jpg source/ target/                # Disable comprehensive check
 uv run op/op.py -c -D redirect -R MyDups -K copy source/ target/  # Custom redirect
+uv run op/op.py -c -D rename -K backup -j jpg source/ target/     # Rename mode
+uv run op/op.py -c -D overwrite -v -j jpg source/ target/         # Overwrite mode
 ```
 
 ### Development setup
