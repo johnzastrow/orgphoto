@@ -3,8 +3,34 @@ orgphoto (op)
 
 ![logo](doc/logo.png)
 
-SUMMARY:
---------
+## Table of Contents
+
+- [Summary](#summary)
+- [What's New in v1.4.0](#-whats-new-in-v140)
+- [Features](#features)
+  - [Core Functionality](#core-functionality)
+  - [Advanced Duplicate Detection](#advanced-duplicate-detection)
+- [Usage](#usage)
+- [Usage Examples](#usage-examples)
+  - [Basic Operations](#basic-operations)
+  - [Comprehensive Duplicate Detection Examples](#comprehensive-duplicate-detection-examples)
+  - [Interactive Duplicate Handling](#interactive-duplicate-handling)
+  - [Renaming Duplicate Handling](#renaming-duplicate-handling)
+  - [Redirect Duplicate Handling](#redirect-duplicate-handling)
+  - [Overwrite Handling](#overwrite-handling)
+  - [Performance Optimization Examples](#performance-optimization-examples)
+  - [Advanced Combinations](#advanced-combinations)
+  - [Real-World Scenarios](#real-world-scenarios)
+  - [Using UV (Recommended)](#using-uv-recommended)
+- [Duplicate Handling Modes](#duplicate-handling-modes)
+- [Redirect Duplicate Handling](#redirect-duplicate-handling-1)
+- [Comprehensive Duplicate Detection](#comprehensive-duplicate-detection)
+- [Performance Considerations](#performance-considerations)
+- [Installation](#installation)
+- [Building Windows .exe](#building-windows-exe)
+- [File Formats](#file-formats)
+
+## Summary
 
 This script scans a source directory (recursively) for files (all types by default, or specified extensions),
 extracts their creation date (preferably from EXIF metadata, or falls back to the file system date),
@@ -27,8 +53,7 @@ Note this is a major rewrite of the upstream project skorokithakis/photocopy and
 
 
 
-FEATURES:
----------
+## Features
 
 ### Core Functionality
 - **🌟 Processes ALL file types by default** - no extension specification needed (supports 33+ formats via hachoir)
@@ -59,8 +84,7 @@ FEATURES:
 - **Performance control**: Use `-N` flag to disable comprehensive checking for large target directories
 - **Smart conflict resolution**: Automatically generates unique filenames when needed
 
-USAGE:
----------
+## Usage
 From the packaged .exe. But the script is the same code.
 
 ```bash
@@ -98,8 +122,7 @@ options:
 If neither --move nor --copy is specified, the script will prompt to run in dryrun mode simulating moving files.
 ```
 
-USAGE EXAMPLES:
----------------
+## Usage Examples
 
 ### Basic Operations
 
@@ -623,8 +646,7 @@ python op.py -c -N -D overwrite -j jpg source/ target/
 
 The hash cache provides excellent performance for most use cases, typically processing 100-500 files per minute even with comprehensive checking enabled.
 
-INSTALLATION
-------------
+## Installation
 **<u>pip</u>** 
 Just run:
 
@@ -638,13 +660,37 @@ Just run:
     2. Make sure uv is installed. It will handle dependencies 
     3. Then execute the script using python as in # uv run op.py
 
-Usage - Windows .exe
------
-This project also contains a Windows executable made by simply compiling the script with this project https://pypi.org/project/auto-py-to-exe/ "A .py to .exe converter using a simple graphical interface and PyInstaller in Python." It works EXACTLY like the script without the hassle of setting up Python where you want to run it. There is a copy of the .exe of some vintage here in this repo.
+## Building Windows .exe
 
-This is the command I used to build the .exe, though I cheated by using the UI
+### Recommended Build Method (using uv)
 
-``` pyinstaller --noconfirm --onefile --console --icon "C:\Github\orgphoto\doc\favicon.ico"  "C:\Github\orgphoto\op\op.py" ```
+This project supports building Windows executables using PyInstaller with proper dependency resolution:
+
+```bash
+# Recommended approach - ensures proper dependency resolution
+uv run pyinstaller --noconfirm --onefile --console --collect-all hachoir --icon "doc/favicon.ico" "op.py"
+
+# Alternative using existing spec file (after running uv sync)
+uv run pyinstaller op.spec
+```
+
+**Why use `uv run pyinstaller`?**
+- **Dependency Resolution**: `uv run` ensures PyInstaller runs within the project's virtual environment where `hachoir` and other dependencies are properly installed
+- **Module Discovery**: The `--collect-all hachoir` flag tells PyInstaller to include all hachoir submodules and data files
+- **Reliability**: Avoids "ModuleNotFoundError" issues that occur when PyInstaller can't find project dependencies
+- **Consistency**: Uses the same dependency versions as your development environment
+
+### Legacy Build Methods
+
+```bash
+# Using auto-py-to-exe with existing config (may have dependency issues)
+auto-py-to-exe op/pyinstallerconfig.json
+
+# Manual PyInstaller command (not recommended - missing dependencies)
+pyinstaller --noconfirm --onefile --console --icon "doc/favicon.ico" "op.py"
+```
+
+**Note**: Legacy methods may fail with `ModuleNotFoundError: No module named 'hachoir'` because they don't properly resolve dependencies from the uv environment.
 
 
 Here's an example of running the built .exe in Windows, where op.exe is asked to Move all files even if No eXif data is found (ahem heic files), move files of extensions (case-insensitive) jpg,png,jpeg,heic,mov, from `src1` (and its sub directories) to `target` into folders by date:
@@ -671,8 +717,7 @@ Examples of log entries
 ![logging](../main/doc/log2.png)
 
 
- File Formats
- -------------
+## File Formats
 
 This version of orgphoto (op) uses the [https://pypi.org/project/hachoir/](hachoir) software to extract EXIF metadata. Hachoir supports the following 
 file formats as of version 3.3.0 in November 2024.

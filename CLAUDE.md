@@ -47,12 +47,25 @@ pip install hachoir auto-py-to-exe
 
 ### Building Windows executable
 ```bash
+# Recommended approach using uv (ensures proper dependency resolution)
+uv run pyinstaller --noconfirm --onefile --console --collect-all hachoir --icon "doc/favicon.ico" "op.py"
+
+# Alternative using existing spec file (after running uv sync)
+uv run pyinstaller op.spec
+
+# Legacy approaches (may fail with dependency issues)
 # Using auto-py-to-exe with existing config
 auto-py-to-exe op/pyinstallerconfig.json
 
-# Manual PyInstaller command
+# Manual PyInstaller command (not recommended - missing dependencies)
 pyinstaller --noconfirm --onefile --console --icon "doc/favicon.ico" "op.py"
 ```
+
+**Why use `uv run pyinstaller`?**
+- **Dependency Resolution**: `uv run` ensures PyInstaller runs within the project's virtual environment where `hachoir` and other dependencies are properly installed
+- **Module Discovery**: The `--collect-all hachoir` flag tells PyInstaller to include all hachoir submodules and data files
+- **Reliability**: Avoids "ModuleNotFoundError" issues that occur when PyInstaller can't find project dependencies
+- **Consistency**: Uses the same dependency versions as your development environment
 
 ## Core Functionality
 
