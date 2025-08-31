@@ -5,13 +5,13 @@ op.py - Organize and copy/move photos and videos by date
 
 SUMMARY:
 --------
-This script scans a source directory (recursively) for image and video files with specified extensions,
+This script scans a source directory (recursively) for files (all types by default, or specified extensions),
 extracts their creation date (preferably from EXIF metadata, or falls back to the file system date),
 and copies or moves them into subfolders in a destination directory, organized by date (YYYY_MM_DD).
 
 FEATURES:
 ---------
-- Supports any file extension recognized by hachoir (default: jpeg, jpg).
+- Supports any file extension recognized by hachoir (processes all file types by default).
 - Recursively processes all subfolders in the source directory.
 - Uses EXIF metadata for creation date if available; otherwise, uses the file system's modification date.
 - Can skip, only process, or fallback to file system date for files without EXIF metadata (configurable).
@@ -24,43 +24,49 @@ FEATURES:
 
 USAGE EXAMPLES:
 ---------------
-1. Move JPG files from source to destination, organizing by EXIF date, skipping files without EXIF:
+1. Process ALL file types (default behavior - no extension filtering):
+    python op.py -c Z:\\photosync target/
+
+2. Move JPG files from source to destination, organizing by EXIF date, skipping files without EXIF:
     python op.py -m -j jpg Z:\\photosync target/
 
-2. Copy various file types, using file system date if EXIF is missing:
+3. Copy various file types, using file system date if EXIF is missing:
     python op.py -c -j gif,png,jpg,mov,mp4 -x no Z:\\photosync target/
 
-3. Dry run: Simulate moving files without making changes:
+4. Dry run: Simulate moving files without making changes:
     python op.py -m -d -j jpg Z:\\photosync target/
 
-4. Only process files that do not have EXIF data (using file system date):
+5. Only process files that do not have EXIF data (using file system date):
     python op.py -c -x fs -j jpg Z:\\photosync target/
 
-5. Move PNG and JPEG files, verbose logging enabled:
+6. Move PNG and JPEG files, verbose logging enabled:
     python op.py -m -v -j png,jpeg Z:\\photosync target/
 
-6. Copy files with content-based duplicate detection (skip identical, rename different):
+7. Copy files with content-based duplicate detection (skip identical, rename different):
     python op.py -c -D content -j jpg Z:\\photosync target/
 
-7. Move files with interactive duplicate handling:
+8. Move files with interactive duplicate handling:
     python op.py -m -D interactive -j jpg Z:\\photosync target/
 
-8. Copy files always renaming duplicates:
+9. Copy files always renaming duplicates:
     python op.py -c -D rename -j jpg Z:\\photosync target/
 
-9. Redirect duplicates to separate directory:
+10. Redirect duplicates to separate directory:
     python op.py -c -D redirect -j jpg Z:\\photosync target/
 
-10. Redirect duplicates with custom directory and keyword:
+11. Redirect duplicates with custom directory and keyword:
     python op.py -c -D redirect -R MyDuplicates -K copy -j jpg Z:\\photosync target/
 
-11. Disable comprehensive SHA256 checking for better performance:
+12. Disable comprehensive SHA256 checking for better performance:
     python op.py -c -N -j jpg Z:\\photosync target/
 
-12. Copy with comprehensive duplicate detection (checks against ALL target files):
+13. Copy with comprehensive duplicate detection (checks against ALL target files):
     python op.py -c -D content -j jpg Z:\\photosync target/
 
-13. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
+14. Process all file types with dry run (no extension filtering):
+    python op.py -d -x no Z:\\photosync target/
+
+15. If neither -m nor -c is specified, the script will prompt to run in dryrun mode simulating moving files.
 
 See --help for all options.
 """
@@ -721,7 +727,7 @@ def recursive_walk(
     Args:
         source_dir (Path): Source directory to scan
         destination_dir (Path): Destination directory for processed files
-        ext_list (list): List of file extensions to process
+        ext_list (list or None): List of file extensions to process, or None to process all file types
         action (str): Action to perform ("move" or "copy")
         exif_only (str): How to handle files without EXIF data
         logger (logging.Logger): Logger for recording operations
@@ -748,8 +754,8 @@ def recursive_walk(
         for filename in filenames:
             file_extension = Path(filename).suffix.lower()
 
-            # Check if file extension matches any in our list
-            if file_extension in ext_list:
+            # Check if file should be processed (either matching extension or all files mode)
+            if ext_list is None or file_extension in ext_list:
                 total_files += 1
 
                 # Process the file and update count if successful
@@ -937,21 +943,28 @@ def parse_arguments(args=None):
 
     # Regular argument parsing
     parser = argparse.ArgumentParser(
-        description="Organize and copy/move photos and videos by date",
-        epilog="If neither --move nor --copy is specified, the script will prompt to run in dryrun mode simulating moving files.",
+        description="Organize files by date with comprehensive duplicate detection. Scans source directory recursively, extracts creation dates from EXIF metadata or filesystem, and organizes files into date-based subdirectories (YYYY_MM_DD). Supports all file types recognized by hachoir library with advanced duplicate handling strategies.",
+        epilog="""
+IMPORTANT NOTES:
+• If neither --move nor --copy is specified, script prompts for dry-run mode
+• All operations are logged to 'events.log' in destination directory  
+• Use --examples to see comprehensive usage scenarios
+• Default behavior processes ALL file types (not just images)
+• Comprehensive SHA-256 duplicate checking enabled by default for accuracy
+• Use -d/--dryrun to preview operations before making changes""",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     # Required positional arguments
     parser.add_argument(
         "source_dir",
-        help="Source directory containing images/videos to organize",
+        help="Source directory containing files to organize. Will be scanned recursively for all subdirectories. Example: '/Users/photos/unsorted' or 'C:\\Photos\\Import'",
         metavar="SOURCE_DIR",
     )
 
     parser.add_argument(
         "destination_dir",
-        help="Destination directory where organized files will be placed",
+        help="Destination directory where organized files will be placed in date-based subdirectories (YYYY_MM_DD format). Directory will be created if it doesn't exist. Example: '/Users/photos/organized' or 'C:\\Photos\\Archive'",
         metavar="DEST_DIR",
     )
 
@@ -961,22 +974,22 @@ def parse_arguments(args=None):
         "-m",
         "--move",
         action="store_true",
-        help="Move files (cannot be used with --copy)",
+        help="Move files from source to destination (removes originals). Files are physically relocated, freeing up space in source directory. Use for permanent organization. Cannot be used with --copy.",
     )
 
     group.add_argument(
         "-c",
         "--copy",
         action="store_true",
-        help="Copy files (cannot be used with --move)",
+        help="Copy files from source to destination (preserves originals). Files remain in source directory and are duplicated to destination. Use for creating organized backup while keeping originals. Cannot be used with --move.",
     )
 
     # Other optional arguments
     parser.add_argument(
         "-j",
         "--extensions",
-        default="jpeg,jpg",
-        help="Extension list - comma separated [default: jpeg,jpg]. Supports all extensions of hachoir",
+        default=None,
+        help="File extensions to process, comma-separated without dots. Examples: 'jpg,png,heic' for photos, 'mp4,mov,avi' for videos, 'jpg,png,mp4,mov' for mixed media. Supports all 33+ formats recognized by hachoir library including images (jpg, png, gif, heic, tiff), videos (mp4, mov, avi, flv), audio (mp3, wav, flac), and documents (pdf). If not specified, processes ALL supported file types [default: all types]",
         metavar="EXT",
         dest="extense",
     )
@@ -985,7 +998,7 @@ def parse_arguments(args=None):
         "-v",
         "--verbose",
         action="store_true",
-        help="Talk more",
+        help="Enable verbose logging with detailed information about each file operation, duplicate detection results, hash calculations, and comprehensive processing statistics. Useful for troubleshooting and understanding exactly what the script is doing. Output is saved to events.log in destination directory.",
     )
 
     parser.add_argument(
@@ -993,21 +1006,21 @@ def parse_arguments(args=None):
         "--exifOnly",
         choices=["yes", "no", "fs"],
         default="yes",
-        help="'yes': skip files with no EXIF, 'no': process all files (fallback to filesystem date), 'fs': only process files with no EXIF [default: yes]",
+        help="Control how files without EXIF metadata are handled: 'yes' (default) = skip files with no EXIF date, only process files with embedded metadata timestamps; 'no' = process ALL files, using EXIF date when available or filesystem modification date as fallback; 'fs' = only process files WITHOUT EXIF data using filesystem dates. Use 'no' for comprehensive processing including documents/videos, 'yes' for photos with reliable timestamps, 'fs' for files that may have been modified but lack metadata.",
     )
 
     parser.add_argument(
         "-d",
         "--dryrun",
         action="store_true",
-        help="Dry run mode: simulate actions, do not move/copy files",
+        help="Dry run mode: simulate all operations without actually moving or copying files. Shows exactly what would happen including file destinations, duplicate handling actions, and directory creation. All activities are logged with '[DRY RUN]' markers. Perfect for testing settings and previewing results before running actual operation. No files or directories are modified in source or destination.",
     )
 
     parser.add_argument(
         "-D",
         "--duplicate-handling",
         default="skip",
-        help="Duplicate handling mode: skip, overwrite, rename, content, interactive, redirect [default: skip]",
+        help="Duplicate handling strategy when files with same name or content exist: 'skip' (default) = skip duplicates, safest option; 'overwrite' = replace existing files, USE WITH CAUTION; 'rename' = add '_duplicate' suffix to create unique names; 'content' = skip only if content identical (SHA-256), rename if name conflicts but different content; 'interactive' = prompt user for each duplicate with full context; 'redirect' = move duplicates to separate directory (see -R option). Content-based modes use comprehensive SHA-256 checking for accuracy.",
         dest="duplicate_handling",
     )
 
@@ -1015,7 +1028,7 @@ def parse_arguments(args=None):
         "-N",
         "--no-comprehensive-check",
         action="store_true",
-        help="Disable comprehensive SHA-256 checking against all existing files (improves performance for large target directories)",
+        help="Disable comprehensive SHA-256 content checking for significant performance improvement. By default, every incoming file is checked against ALL existing target files for true duplicate detection. This flag limits checking to filename conflicts only, dramatically faster for large target directories (>50,000 files) but may miss content duplicates with different names. Use for speed when content accuracy is less critical.",
         dest="no_comprehensive_check",
     )
 
@@ -1023,7 +1036,7 @@ def parse_arguments(args=None):
         "-R",
         "--redirect-dir",
         default="Duplicates",
-        help="Custom directory name for redirect duplicate handling [default: Duplicates]",
+        help="Directory name for duplicate files when using '-D redirect' mode. Can be relative (created under destination) or absolute path. Examples: 'MyDuplicates', 'Archive/Duplicates', '/backup/duplicates'. Duplicates maintain date organization within this directory. Only used with '--duplicate-handling redirect' [default: Duplicates]",
         dest="redirect_dir",
     )
 
@@ -1031,14 +1044,14 @@ def parse_arguments(args=None):
         "-K",
         "--duplicate-keyword",
         default="duplicate",
-        help="Custom keyword for duplicate file renaming [default: duplicate]",
+        help="Custom keyword inserted into filenames for duplicate handling. Used with '-D rename', '-D redirect', and '-D content' modes. Examples: 'copy' creates 'photo_copy.jpg', 'version' creates 'photo_version.jpg', 'alt' creates 'photo_alt.jpg'. Multiple duplicates get incremental numbers: 'photo_copy_001.jpg', 'photo_copy_002.jpg'. Keep short to avoid long filenames [default: duplicate]",
         dest="duplicate_keyword",
     )
 
     parser.add_argument(
         "--examples",
         action="store_true",
-        help="Show usage examples and exit",
+        help="Display comprehensive usage examples covering all major features and exit. Shows real-world scenarios for basic operations, duplicate handling modes, performance optimization, and advanced combinations. Useful quick reference for command construction.",
     )
 
     # Parse the arguments
@@ -1061,7 +1074,11 @@ def main(args=None):
     parsed_args = parse_arguments(args)
 
     # Normalize and validate extensions
-    ext_list = normalize_extensions(parsed_args.extense)
+    if parsed_args.extense is None:
+        # Process all file types - use None to indicate no extension filtering
+        ext_list = None
+    else:
+        ext_list = normalize_extensions(parsed_args.extense)
 
     # Determine action: move, copy, or prompt user
     move_flag = parsed_args.move
@@ -1107,6 +1124,12 @@ def main(args=None):
 
     # Validate source and destination directories
     validate_args(source_dir, destination_dir, logger)
+    
+    # Log extension processing mode
+    if ext_list is None:
+        logger.info("Processing ALL file types supported by hachoir")
+    else:
+        logger.info(f"Processing files with extensions: {', '.join(ext_list)}")
 
     # Ensure destination directory exists
     try:
