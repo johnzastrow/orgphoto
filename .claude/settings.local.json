@@ -8,7 +8,10 @@
       "Bash(rm:*)",
       "Bash(uv sync:*)",
       "Bash(mv:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(uv add:*)",
+      "Bash(cat:*)",
+      "Bash(tree:*)"
     ],
     "deny": []
   }
