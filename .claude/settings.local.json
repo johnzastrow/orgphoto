@@ -6,7 +6,9 @@
       "Bash(python:*)",
       "Bash(pip3 install:*)",
       "Bash(rm:*)",
-      "Bash(uv sync:*)"
+      "Bash(uv sync:*)",
+      "Bash(mv:*)",
+      "Bash(cp:*)"
     ],
     "deny": []
   }

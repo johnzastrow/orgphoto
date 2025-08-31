@@ -267,12 +267,12 @@ USAGE EXAMPLES:
 
 29. **UV with comprehensive duplicate detection**:
     ```bash
-    uv run op/op.py -c -D content -j jpg source/ target/
+    uv run op.py -c -D content -j jpg source/ target/
     ```
 
 30. **UV with redirect and custom settings**:
     ```bash
-    uv run op/op.py -c -D redirect -R MyDupes -K copy -j jpg,heic source/ target/
+    uv run op.py -c -D redirect -R MyDupes -K copy -j jpg,heic source/ target/
     ```
 
 *If neither `-m` nor `-c` is specified, the script will prompt to run in dryrun mode simulating moving files.*

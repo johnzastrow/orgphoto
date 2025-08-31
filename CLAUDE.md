@@ -8,7 +8,7 @@ orgphoto (op) is a Python command-line tool that organizes photos and videos by 
 
 ## Key Architecture
 
-- **Main executable**: `op/op.py` - The primary CLI application with full functionality
+- **Main executable**: `op.py` - The primary CLI application with full functionality
 - **Entry point**: `main.py` - Simple entry point that imports and runs the main application
 - **Dependencies**: Uses `hachoir` for metadata extraction, `pathlib` for file operations
 - **Build system**: Uses `uv` for dependency management and PyInstaller for Windows executable compilation
@@ -18,22 +18,22 @@ orgphoto (op) is a Python command-line tool that organizes photos and videos by 
 ### Running the application
 ```bash
 # Using uv (recommended - handles dependencies automatically)
-uv run op/op.py [options] SOURCE_DIR DEST_DIR
+uv run op.py [options] SOURCE_DIR DEST_DIR
 
 # Using python directly (requires hachoir installed)  
-python op/op.py [options] SOURCE_DIR DEST_DIR
+python op.py [options] SOURCE_DIR DEST_DIR
 
 # From main entry point
 uv run main.py  # (currently just prints hello message)
 
 # Examples with short flags:
-uv run op/op.py -c -D content -j jpg source/ target/        # Content-based duplicates
-uv run op/op.py -m -D interactive -j jpg source/ target/    # Interactive mode
-uv run op/op.py -c -D redirect -j jpg source/ target/       # Redirect duplicates
-uv run op/op.py -c -N -j jpg source/ target/                # Disable comprehensive check
-uv run op/op.py -c -D redirect -R MyDups -K copy source/ target/  # Custom redirect
-uv run op/op.py -c -D rename -K backup -j jpg source/ target/     # Rename mode
-uv run op/op.py -c -D overwrite -v -j jpg source/ target/         # Overwrite mode
+uv run op.py -c -D content -j jpg source/ target/        # Content-based duplicates
+uv run op.py -m -D interactive -j jpg source/ target/    # Interactive mode
+uv run op.py -c -D redirect -j jpg source/ target/       # Redirect duplicates
+uv run op.py -c -N -j jpg source/ target/                # Disable comprehensive check
+uv run op.py -c -D redirect -R MyDups -K copy source/ target/  # Custom redirect
+uv run op.py -c -D rename -K backup -j jpg source/ target/     # Rename mode
+uv run op.py -c -D overwrite -v -j jpg source/ target/         # Overwrite mode
 ```
 
 ### Development setup
@@ -51,7 +51,7 @@ pip install hachoir auto-py-to-exe
 auto-py-to-exe op/pyinstallerconfig.json
 
 # Manual PyInstaller command
-pyinstaller --noconfirm --onefile --console --icon "doc/favicon.ico" "op/op.py"
+pyinstaller --noconfirm --onefile --console --icon "doc/favicon.ico" "op.py"
 ```
 
 ## Core Functionality
@@ -89,13 +89,13 @@ The redirect mode (`-D redirect`) provides intelligent duplicate management:
 ### Usage Examples
 ```bash
 # Basic redirect to target/Duplicates/
-uv run op/op.py -c -D redirect -j jpg source/ target/
+uv run op.py -c -D redirect -j jpg source/ target/
 
 # Custom directory and keyword
-uv run op/op.py -c -D redirect -R Archive/Duplicates -K copy -j jpg source/ target/
+uv run op.py -c -D redirect -R Archive/Duplicates -K copy -j jpg source/ target/
 
 # Interactive mode includes redirect option
-uv run op/op.py -m -D interactive -j jpg source/ target/  # User can choose redirect
+uv run op.py -m -D interactive -j jpg source/ target/  # User can choose redirect
 ```
 
 ### Integration with Comprehensive Checking
@@ -105,7 +105,7 @@ uv run op/op.py -m -D interactive -j jpg source/ target/  # User can choose redi
 
 ## File Organization
 
-- `op/op.py` - Main application logic (CLI parsing, file processing, EXIF extraction)
+- `op.py` - Main application logic (CLI parsing, file processing, EXIF extraction)
 - `op/op.spec` - PyInstaller specification file (legacy, references old filename)
 - `op/pyinstallerconfig.json` - auto-py-to-exe configuration for building executable
 - `testing/` - Contains test directories with sample photos for validation
