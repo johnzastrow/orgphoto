@@ -1,0 +1,15 @@
+add all options to the -h help content and explain each flag in detail
+
+test each flag as some appear to not be implemented
+
+op -m -D redirect -R MyDuplicates -d -x no -j png,jpeg,jpg,heic D:\\fromMarisa E:\\Pictures throws error 
+that there is no -D or -R flag implemented
+
+op.py: error: unrecognized arguments: -D -R D:\fromMarisa E:\Pictures
+
+add a -s scan option to create a comma-separated list of unique file extensions found in a source 
+directory, suitable for pasting into the -j option.
+
+png,jpeg,jpg,heic 
+
+
