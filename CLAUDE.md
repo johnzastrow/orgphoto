@@ -110,3 +110,23 @@ uv run op.py -m -D interactive -j jpg source/ target/  # User can choose redirec
 - `op/pyinstallerconfig.json` - auto-py-to-exe configuration for building executable
 - `testing/` - Contains test directories with sample photos for validation
 - `doc/` - Documentation assets (logos, screenshots)
+
+## VERSION TRACKING REQUIREMENT - CRITICAL REMINDER FOR CLAUDE
+
+**MANDATORY**: Every time you make functional changes to op.py, you MUST:
+
+1. **Increment version number** in `__version__` variable in op.py
+2. **Update version history comment** with changes made
+3. **Update date** in `myversion` variable to current date
+4. **Use semantic versioning**: MAJOR.MINOR.PATCH
+   - MAJOR: Breaking changes or major architecture changes
+   - MINOR: New features, significant enhancements (like new default behavior)
+   - PATCH: Bug fixes, minor improvements, documentation updates
+
+**Current version: 1.4.0** (as of 2025-08-31)
+
+**Recent version history:**
+- v1.4.0: Added all file types as default (no extension requirement), enhanced comprehensive help text
+- v1.3.x: Original comprehensive duplicate detection system
+
+This ensures users can track changes and compatibility across versions.

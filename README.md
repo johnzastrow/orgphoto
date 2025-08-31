@@ -6,11 +6,18 @@ orgphoto (op)
 SUMMARY:
 --------
 
-This script scans a source directory (recursively) for image and video files with specified extensions,
+This script scans a source directory (recursively) for files (all types by default, or specified extensions),
 extracts their creation date (preferably from EXIF metadata, or falls back to the file system date),
 and copies or moves them into subfolders in a destination directory, organized by date (YYYY_MM_DD).
 
 **Key features**: Comprehensive SHA-256 duplicate detection, intelligent conflict resolution, and flexible duplicate handling modes.
+
+## ✨ What's New in v1.4.0
+
+- **🎯 All File Types by Default**: No need to specify extensions - processes all supported formats automatically
+- **📖 Enhanced Help System**: Comprehensive help text with detailed explanations and real-world examples  
+- **🔧 Better User Experience**: Streamlined workflow for both beginners and power users
+- **📊 Version Display**: Shows version number during operation for better tracking
 
 A common use case might be to move them from a mobile device into archive folders, or to reorganize archives. 
 
@@ -24,15 +31,17 @@ FEATURES:
 ---------
 
 ### Core Functionality
-- Supports any file extension recognized by hachoir (default: jpeg, jpg).
+- **🌟 Processes ALL file types by default** - no extension specification needed (supports 33+ formats via hachoir)
+- **📁 Smart file filtering** - optionally specify extensions when targeted processing is needed
 - Recursively processes all subfolders in the source directory.
 - Uses EXIF metadata for creation date if available; otherwise, uses the file system's modification date.
 - Can skip, only process, or fallback to file system date for files without EXIF metadata (configurable).
 - Optionally moves files instead of copying.
-- Dry run mode: simulate actions without making changes.
-- Progress reporting and detailed logging to a file in the destination directory.
+- **🔍 Dry run mode** with detailed preview of all operations before execution.
+- Progress reporting and comprehensive logging to events.log in destination directory.
+- **📖 Comprehensive help system** with detailed explanations and real-world examples.
 - Robust error handling for file operations, directory creation, and metadata extraction.
-- Command-line interface with flexible options using argparse.
+- **🎛️ User-friendly command-line interface** with extensive help and examples.
 - Uses pathlib for modern, robust path handling.
 
 ### Advanced Duplicate Detection
@@ -94,40 +103,45 @@ USAGE EXAMPLES:
 
 ### Basic Operations
 
-1. **Move JPG files with comprehensive duplicate detection (default behavior)**:
+1. **Process ALL file types (new default behavior - no extension filtering required)**:
+   ```bash
+   python op.py -c Z:\photosync target/
+   ```
+
+2. **Move JPG files only (specify extensions when filtering needed)**:
    ```bash
    python op.py -m -j jpg Z:\photosync target/
    ```
 
-2. **Copy various file types, using file system date if EXIF is missing**:
+3. **Copy various file types, using file system date if EXIF is missing**:
    ```bash
    python op.py -c -x no -j gif,png,jpg,mov,mp4 Z:\photosync target/
    ```
 
-3. **Dry run: Simulate moving files without making changes**:
+4. **Dry run: Simulate moving files without making changes**:
    ```bash
    python op.py -m -d -j jpg Z:\photosync target/
    ```
 
-4. **Process only files without EXIF data (using file system date)**:
+5. **Process only files without EXIF data (using file system date)**:
    ```bash
    python op.py -c -x fs -j jpg Z:\photosync target/
    ```
 
-5. **Move PNG and JPEG files with verbose logging**:
+6. **Move PNG and JPEG files with verbose logging**:
    ```bash
    python op.py -m -v -j png,jpeg Z:\photosync target/
    ```
 
 ### Comprehensive Duplicate Detection Examples
 
-6. **Content-based duplicate detection (skip identical, rename different)**:
+7. **Content-based duplicate detection (skip identical, rename different)**:
    ```bash
    python op.py -c -D content -j jpg Z:\photosync target/
    ```
    *This compares SHA-256 hashes to detect truly identical files regardless of filename*
 
-7. **Content-based with custom keyword for different files**:
+8. **Content-based with custom keyword for different files**:
    ```bash
    python op.py -c -D content -K version -j jpg Z:\photosync target/
    ```
@@ -135,27 +149,27 @@ USAGE EXAMPLES:
 
 ### Interactive Duplicate Handling
 
-8. **Interactive duplicate handling (ask user for each conflict)**:
+9. **Interactive duplicate handling (ask user for each conflict)**:
    ```bash
    python op.py -m -D interactive -j jpg Z:\photosync target/
    ```
    *Prompts user with options: Skip, Overwrite, Rename, or Redirect*
 
-9. **Interactive mode with verbose context**:
-   ```bash
-   python op.py -m -D interactive -v -j jpg,png,heic Z:\photosync target/
-   ```
-   *Provides detailed information about each duplicate for informed decisions*
+10. **Interactive mode with verbose context**:
+    ```bash
+    python op.py -m -D interactive -v -j jpg,png,heic Z:\photosync target/
+    ```
+    *Provides detailed information about each duplicate for informed decisions*
 
 ### Renaming Duplicate Handling
 
-10. **Always rename duplicates (never skip or overwrite)**:
+11. **Always rename duplicates (never skip or overwrite)**:
     ```bash
     python op.py -c -D rename -j jpg Z:\photosync target/
     ```
     *Generates: photo.jpg → photo_duplicate.jpg → photo_duplicate_001.jpg*
 
-11. **Rename with custom keyword**:
+12. **Rename with custom keyword**:
     ```bash
     python op.py -c -D rename -K copy -j jpg Z:\photosync target/
     ```
@@ -163,25 +177,25 @@ USAGE EXAMPLES:
 
 ### Redirect Duplicate Handling
 
-12. **Redirect duplicates to separate directory**:
+13. **Redirect duplicates to separate directory**:
     ```bash
     python op.py -c -D redirect -j jpg Z:\photosync target/
     ```
     *Creates: target/Duplicates/YYYY_MM_DD/filename_duplicate.jpg*
 
-13. **Redirect with custom directory and keyword**:
+14. **Redirect with custom directory and keyword**:
     ```bash
     python op.py -c -D redirect -R MyDuplicates -K copy -j jpg Z:\photosync target/
     ```
     *Creates: target/MyDuplicates/YYYY_MM_DD/filename_copy.jpg*
 
-14. **Redirect to absolute path**:
+15. **Redirect to absolute path**:
     ```bash
     python op.py -c -D redirect -R /backup/duplicates -j jpg Z:\photosync target/
     ```
     *Creates: /backup/duplicates/YYYY_MM_DD/filename_duplicate.jpg*
 
-15. **Redirect with dry run to see what would happen**:
+16. **Redirect with dry run to see what would happen**:
     ```bash
     python op.py -c -d -D redirect -R TestDupes -j jpg Z:\photosync target/
     ```
@@ -189,88 +203,88 @@ USAGE EXAMPLES:
 
 ### Overwrite Handling
 
-16. **Overwrite all duplicates (replace existing files)**:
+17. **Overwrite all duplicates (replace existing files)**:
     ```bash
     python op.py -m -D overwrite -j jpg Z:\photosync target/
     ```
     *Warning: This will replace existing files without backup*
 
-17. **Overwrite with verbose logging for audit trail**:
+18. **Overwrite with verbose logging for audit trail**:
     ```bash
     python op.py -c -v -D overwrite -j jpg,png Z:\photosync target/
     ```
 
 ### Performance Optimization Examples
 
-18. **Disable comprehensive checking for large target directories**:
+19. **Disable comprehensive checking for large target directories**:
     ```bash
     python op.py -c -N -j jpg Z:\photosync target/
     ```
     *Skips SHA-256 hashing of existing files for faster processing*
 
-19. **Fast mode: disable comprehensive checking + rename duplicates**:
+20. **Fast mode: disable comprehensive checking + rename duplicates**:
     ```bash
     python op.py -c -N -D rename -j jpg Z:\photosync target/
     ```
     *Fastest processing - only checks filename conflicts*
 
-20. **Performance mode with redirect**:
+21. **Performance mode with redirect**:
     ```bash
     python op.py -c -N -D redirect -R FastDupes -j jpg Z:\photosync target/
     ```
 
 ### Advanced Combinations
 
-21. **Content-based detection with verbose logging**:
+22. **Content-based detection with verbose logging**:
     ```bash
     python op.py -m -v -D content -j png,jpeg Z:\photosync target/
     ```
 
-22. **Process files without EXIF, redirect duplicates**:
+23. **Process files without EXIF, redirect duplicates**:
     ```bash
     python op.py -c -x fs -D redirect -R DuplicatesNoExif -j jpg Z:\photosync target/
     ```
 
-23. **Multi-format processing with custom duplicate handling**:
+24. **Multi-format processing with custom duplicate handling**:
     ```bash
     python op.py -c -x no -D content -K backup -j jpg,png,gif,heic,mov,mp4 Z:\photosync target/
     ```
 
-24. **Maximum safety mode (comprehensive + interactive)**:
+25. **Maximum safety mode (comprehensive + interactive)**:
     ```bash
     python op.py -c -D interactive -v -j jpg,png,heic,mov Z:\photosync target/
     ```
 
 ### Real-World Scenarios
 
-25. **Mobile device photo import with comprehensive deduplication**:
+26. **Mobile device photo import with comprehensive deduplication**:
     ```bash
     python op.py -c -x no -D content -j jpg,png,heic,mov /sdcard/DCIM target/photos/
     ```
 
-26. **Archive consolidation with duplicate redirection**:
+27. **Archive consolidation with duplicate redirection**:
     ```bash
     python op.py -c -D redirect -R Archive/Duplicates -j jpg,png,gif,tiff old_archive/ consolidated_archive/
     ```
 
-27. **Large photo library processing (performance optimized)**:
+28. **Large photo library processing (performance optimized)**:
     ```bash
     python op.py -c -N -D rename -K alt -j jpg,png,heic source/ target/
     ```
 
-28. **Cautious migration with dry-run and interactive**:
+29. **Cautious migration with dry-run and interactive**:
     ```bash
     python op.py -d -D interactive -v -j jpg,png,heic,mov source/ target/
     ```
 
 ### Using UV (Recommended)
 
-29. **UV with comprehensive duplicate detection**:
+30. **UV with comprehensive duplicate detection**:
     ```bash
     uv run op.py -c -D content -j jpg source/ target/
     ```
 
-30. **UV with redirect and custom settings**:
+31. **UV with redirect and custom settings**:
     ```bash
     uv run op.py -c -D redirect -R MyDupes -K copy -j jpg,heic source/ target/
     ```

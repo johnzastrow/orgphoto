@@ -90,7 +90,13 @@ from hachoir.core import config
 config.quiet = True
 
 # Script version information
-myversion = "v. 1.3 Cheesy Dibbles 2025-06-17"
+# Version History:
+# v1.3.x - Original comprehensive duplicate detection system
+# v1.4.0 - Added all file types as default (no extension requirement)
+#          Enhanced comprehensive help text for all options
+# v1.4.1 - Updated documentation and README with new features and examples
+__version__ = "1.4.1"
+myversion = f"v. {__version__} 2025-08-31"
 
 
 def calculate_file_hash(file_path: Path, algorithm: str = 'sha256') -> str:
@@ -1054,6 +1060,13 @@ IMPORTANT NOTES:
         help="Display comprehensive usage examples covering all major features and exit. Shows real-world scenarios for basic operations, duplicate handling modes, performance optimization, and advanced combinations. Useful quick reference for command construction.",
     )
 
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="Show program version and exit",
+    )
+
     # Parse the arguments
     parsed_args = parser.parse_args(args)
     return parsed_args
@@ -1117,8 +1130,9 @@ def main(args=None):
     # Set up logging to a file in the destination directory
     logger = set_up_logging(destination_dir, parsed_args.verbose)
 
-    # Log script start with MariaDB TIMESTAMP format (YYYY-MM-DD HH:MM:SS)
+    # Display version and log script start with MariaDB TIMESTAMP format (YYYY-MM-DD HH:MM:SS)
     start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"orgphoto {myversion}")
     logger.info(f"{10 * '-'}{myversion}++ Started: {start_time}")
     logger.debug("options: %s", vars(parsed_args))
 
