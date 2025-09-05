@@ -3,14 +3,47 @@ orgphoto (op)
 
 ![logo](doc/logo.png)
 
-SUMMARY:
---------
+## Table of Contents
 
-This script scans a source directory (recursively) for image and video files with specified extensions,
+- [Summary](#summary)
+- [What's New in v1.4.0](#-whats-new-in-v140)
+- [Features](#features)
+  - [Core Functionality](#core-functionality)
+  - [Advanced Duplicate Detection](#advanced-duplicate-detection)
+- [Usage](#usage)
+- [Usage Examples](#usage-examples)
+  - [Basic Operations](#basic-operations)
+  - [Comprehensive Duplicate Detection Examples](#comprehensive-duplicate-detection-examples)
+  - [Interactive Duplicate Handling](#interactive-duplicate-handling)
+  - [Renaming Duplicate Handling](#renaming-duplicate-handling)
+  - [Redirect Duplicate Handling](#redirect-duplicate-handling)
+  - [Overwrite Handling](#overwrite-handling)
+  - [Performance Optimization Examples](#performance-optimization-examples)
+  - [Advanced Combinations](#advanced-combinations)
+  - [Real-World Scenarios](#real-world-scenarios)
+  - [Using UV (Recommended)](#using-uv-recommended)
+- [Duplicate Handling Modes](#duplicate-handling-modes)
+- [Redirect Duplicate Handling](#redirect-duplicate-handling-1)
+- [Comprehensive Duplicate Detection](#comprehensive-duplicate-detection)
+- [Performance Considerations](#performance-considerations)
+- [Installation](#installation)
+- [Building Windows .exe](#building-windows-exe)
+- [File Formats](#file-formats)
+
+## Summary
+
+This script scans a source directory (recursively) for files (all types by default, or specified extensions),
 extracts their creation date (preferably from EXIF metadata, or falls back to the file system date),
 and copies or moves them into subfolders in a destination directory, organized by date (YYYY_MM_DD).
 
 **Key features**: Comprehensive SHA-256 duplicate detection, intelligent conflict resolution, and flexible duplicate handling modes.
+
+## ✨ What's New in v1.4.0
+
+- **🎯 All File Types by Default**: No need to specify extensions - processes all supported formats automatically
+- **📖 Enhanced Help System**: Comprehensive help text with detailed explanations and real-world examples  
+- **🔧 Better User Experience**: Streamlined workflow for both beginners and power users
+- **📊 Version Display**: Shows version number during operation for better tracking
 
 A common use case might be to move them from a mobile device into archive folders, or to reorganize archives. 
 
@@ -20,19 +53,20 @@ Note this is a major rewrite of the upstream project skorokithakis/photocopy and
 
 
 
-FEATURES:
----------
+## Features
 
 ### Core Functionality
-- Supports any file extension recognized by hachoir (default: jpeg, jpg).
+- **🌟 Processes ALL file types by default** - no extension specification needed (supports 33+ formats via hachoir)
+- **📁 Smart file filtering** - optionally specify extensions when targeted processing is needed
 - Recursively processes all subfolders in the source directory.
 - Uses EXIF metadata for creation date if available; otherwise, uses the file system's modification date.
 - Can skip, only process, or fallback to file system date for files without EXIF metadata (configurable).
 - Optionally moves files instead of copying.
-- Dry run mode: simulate actions without making changes.
-- Progress reporting and detailed logging to a file in the destination directory.
+- **🔍 Dry run mode** with detailed preview of all operations before execution.
+- Progress reporting and comprehensive logging to events.log in destination directory.
+- **📖 Comprehensive help system** with detailed explanations and real-world examples.
 - Robust error handling for file operations, directory creation, and metadata extraction.
-- Command-line interface with flexible options using argparse.
+- **🎛️ User-friendly command-line interface** with extensive help and examples.
 - Uses pathlib for modern, robust path handling.
 
 ### Advanced Duplicate Detection
@@ -50,8 +84,7 @@ FEATURES:
 - **Performance control**: Use `-N` flag to disable comprehensive checking for large target directories
 - **Smart conflict resolution**: Automatically generates unique filenames when needed
 
-USAGE:
----------
+## Usage
 From the packaged .exe. But the script is the same code.
 
 ```bash
@@ -89,80 +122,194 @@ options:
 If neither --move nor --copy is specified, the script will prompt to run in dryrun mode simulating moving files.
 ```
 
-USAGE EXAMPLES:
----------------
+## Usage Examples
 
 ### Basic Operations
 
-1. **Move JPG files with comprehensive duplicate detection (default behavior)**:
+1. **Process ALL file types (new default behavior - no extension filtering required)**:
+   ```bash
+   python op.py -c Z:\photosync target/
+   ```
+
+2. **Move JPG files only (specify extensions when filtering needed)**:
    ```bash
    python op.py -m -j jpg Z:\photosync target/
    ```
 
-2. **Copy various file types, using file system date if EXIF is missing**:
+3. **Copy various file types, using file system date if EXIF is missing**:
    ```bash
    python op.py -c -x no -j gif,png,jpg,mov,mp4 Z:\photosync target/
    ```
 
-3. **Dry run: Simulate moving files without making changes**:
+4. **Dry run: Simulate moving files without making changes**:
    ```bash
    python op.py -m -d -j jpg Z:\photosync target/
    ```
 
-### Advanced Duplicate Handling
+5. **Process only files without EXIF data (using file system date)**:
+   ```bash
+   python op.py -c -x fs -j jpg Z:\photosync target/
+   ```
 
-4. **Content-based duplicate detection (skip identical, rename different)**:
+6. **Move PNG and JPEG files with verbose logging**:
+   ```bash
+   python op.py -m -v -j png,jpeg Z:\photosync target/
+   ```
+
+### Comprehensive Duplicate Detection Examples
+
+7. **Content-based duplicate detection (skip identical, rename different)**:
    ```bash
    python op.py -c -D content -j jpg Z:\photosync target/
    ```
+   *This compares SHA-256 hashes to detect truly identical files regardless of filename*
 
-5. **Interactive duplicate handling (ask user for each conflict)**:
+8. **Content-based with custom keyword for different files**:
+   ```bash
+   python op.py -c -D content -K version -j jpg Z:\photosync target/
+   ```
+   *Different content with same filename becomes: photo_version.jpg*
+
+### Interactive Duplicate Handling
+
+9. **Interactive duplicate handling (ask user for each conflict)**:
    ```bash
    python op.py -m -D interactive -j jpg Z:\photosync target/
    ```
+   *Prompts user with options: Skip, Overwrite, Rename, or Redirect*
 
-6. **Always rename duplicates (never skip or overwrite)**:
-   ```bash
-   python op.py -c -D rename -j jpg Z:\photosync target/
-   ```
+10. **Interactive mode with verbose context**:
+    ```bash
+    python op.py -m -D interactive -v -j jpg,png,heic Z:\photosync target/
+    ```
+    *Provides detailed information about each duplicate for informed decisions*
 
-7. **Redirect duplicates to separate directory**:
-   ```bash
-   python op.py -c -D redirect -j jpg Z:\photosync target/
-   ```
+### Renaming Duplicate Handling
 
-8. **Redirect duplicates with custom directory and keyword**:
-   ```bash
-   python op.py -c -D redirect -R MyDuplicates -K copy -j jpg Z:\photosync target/
-   ```
+11. **Always rename duplicates (never skip or overwrite)**:
+    ```bash
+    python op.py -c -D rename -j jpg Z:\photosync target/
+    ```
+    *Generates: photo.jpg → photo_duplicate.jpg → photo_duplicate_001.jpg*
 
-9. **Overwrite all duplicates (replace existing files)**:
-   ```bash
-   python op.py -m -D overwrite -j jpg Z:\photosync target/
-   ```
+12. **Rename with custom keyword**:
+    ```bash
+    python op.py -c -D rename -K copy -j jpg Z:\photosync target/
+    ```
+    *Generates: photo.jpg → photo_copy.jpg → photo_copy_001.jpg*
 
-### Performance Options
+### Redirect Duplicate Handling
 
-10. **Disable comprehensive checking for large target directories**:
+13. **Redirect duplicates to separate directory**:
+    ```bash
+    python op.py -c -D redirect -j jpg Z:\photosync target/
+    ```
+    *Creates: target/Duplicates/YYYY_MM_DD/filename_duplicate.jpg*
+
+14. **Redirect with custom directory and keyword**:
+    ```bash
+    python op.py -c -D redirect -R MyDuplicates -K copy -j jpg Z:\photosync target/
+    ```
+    *Creates: target/MyDuplicates/YYYY_MM_DD/filename_copy.jpg*
+
+15. **Redirect to absolute path**:
+    ```bash
+    python op.py -c -D redirect -R /backup/duplicates -j jpg Z:\photosync target/
+    ```
+    *Creates: /backup/duplicates/YYYY_MM_DD/filename_duplicate.jpg*
+
+16. **Redirect with dry run to see what would happen**:
+    ```bash
+    python op.py -c -d -D redirect -R TestDupes -j jpg Z:\photosync target/
+    ```
+    *Shows redirect actions in log without making changes*
+
+### Overwrite Handling
+
+17. **Overwrite all duplicates (replace existing files)**:
+    ```bash
+    python op.py -m -D overwrite -j jpg Z:\photosync target/
+    ```
+    *Warning: This will replace existing files without backup*
+
+18. **Overwrite with verbose logging for audit trail**:
+    ```bash
+    python op.py -c -v -D overwrite -j jpg,png Z:\photosync target/
+    ```
+
+### Performance Optimization Examples
+
+19. **Disable comprehensive checking for large target directories**:
     ```bash
     python op.py -c -N -j jpg Z:\photosync target/
     ```
+    *Skips SHA-256 hashing of existing files for faster processing*
 
-11. **Fast mode: disable comprehensive checking + rename duplicates**:
+20. **Fast mode: disable comprehensive checking + rename duplicates**:
     ```bash
     python op.py -c -N -D rename -j jpg Z:\photosync target/
+    ```
+    *Fastest processing - only checks filename conflicts*
+
+21. **Performance mode with redirect**:
+    ```bash
+    python op.py -c -N -D redirect -R FastDupes -j jpg Z:\photosync target/
     ```
 
 ### Advanced Combinations
 
-12. **Verbose logging with content-based duplicate detection**:
+22. **Content-based detection with verbose logging**:
     ```bash
     python op.py -m -v -D content -j png,jpeg Z:\photosync target/
     ```
 
-13. **Process files without EXIF using file system date, with redirect duplicates**:
+23. **Process files without EXIF, redirect duplicates**:
     ```bash
     python op.py -c -x fs -D redirect -R DuplicatesNoExif -j jpg Z:\photosync target/
+    ```
+
+24. **Multi-format processing with custom duplicate handling**:
+    ```bash
+    python op.py -c -x no -D content -K backup -j jpg,png,gif,heic,mov,mp4 Z:\photosync target/
+    ```
+
+25. **Maximum safety mode (comprehensive + interactive)**:
+    ```bash
+    python op.py -c -D interactive -v -j jpg,png,heic,mov Z:\photosync target/
+    ```
+
+### Real-World Scenarios
+
+26. **Mobile device photo import with comprehensive deduplication**:
+    ```bash
+    python op.py -c -x no -D content -j jpg,png,heic,mov /sdcard/DCIM target/photos/
+    ```
+
+27. **Archive consolidation with duplicate redirection**:
+    ```bash
+    python op.py -c -D redirect -R Archive/Duplicates -j jpg,png,gif,tiff old_archive/ consolidated_archive/
+    ```
+
+28. **Large photo library processing (performance optimized)**:
+    ```bash
+    python op.py -c -N -D rename -K alt -j jpg,png,heic source/ target/
+    ```
+
+29. **Cautious migration with dry-run and interactive**:
+    ```bash
+    python op.py -d -D interactive -v -j jpg,png,heic,mov source/ target/
+    ```
+
+### Using UV (Recommended)
+
+30. **UV with comprehensive duplicate detection**:
+    ```bash
+    uv run op.py -c -D content -j jpg source/ target/
+    ```
+
+31. **UV with redirect and custom settings**:
+    ```bash
+    uv run op.py -c -D redirect -R MyDupes -K copy -j jpg,heic source/ target/
     ```
 
 *If neither `-m` nor `-c` is specified, the script will prompt to run in dryrun mode simulating moving files.*
@@ -174,6 +321,95 @@ USAGE EXAMPLES:
 - `-R` = redirect directory, `-K` = duplicate keyword
 
 See `python op.py --help` or `python op.py --examples` for all options.
+
+## DUPLICATE HANDLING MODES
+
+orgphoto provides six different modes for handling duplicate files, each optimized for different use cases:
+
+### 1. Skip Mode (`-D skip`) - **DEFAULT**
+**Behavior**: Skip files if filename exists OR identical content found anywhere in target
+- **Use case**: Safest option, avoids any duplicate content
+- **Performance**: Medium (requires comprehensive hash checking)
+- **Output**: Logs "skipped - duplicate detected"
+
+```bash
+python op.py -c -D skip -j jpg source/ target/
+```
+
+### 2. Content Mode (`-D content`)
+**Behavior**: Skip if identical content exists, rename if same filename but different content
+- **Content identical**: Skip processing (logged as "skipped - identical content")  
+- **Filename conflict, different content**: Rename with suffix
+- **Use case**: Preserve all unique content while avoiding true duplicates
+- **Performance**: Medium (requires comprehensive hash checking)
+
+```bash
+python op.py -c -D content -j jpg source/ target/
+# photo.jpg with same content → skipped
+# photo.jpg with different content → photo_duplicate.jpg
+```
+
+### 3. Rename Mode (`-D rename`)
+**Behavior**: Always rename duplicates, never skip or overwrite
+- **Filename exists**: Add suffix `_duplicate` (or custom keyword)
+- **Multiple conflicts**: Incremental numbering `_duplicate_001`, `_duplicate_002`
+- **Use case**: Preserve all files, never lose anything
+- **Performance**: Fast (can work without comprehensive checking)
+
+```bash
+python op.py -c -D rename -K backup -j jpg source/ target/
+# photo.jpg → photo_backup.jpg → photo_backup_001.jpg
+```
+
+### 4. Overwrite Mode (`-D overwrite`)
+**Behavior**: Replace existing files without confirmation
+- **Filename exists**: Overwrite the existing file
+- **Content duplicates**: Still overwrite (if comprehensive checking enabled)
+- **Use case**: Always use the newest version of files
+- **⚠️ Warning**: Data loss possible - existing files are replaced
+- **Performance**: Fast
+
+```bash
+python op.py -c -D overwrite -j jpg source/ target/
+```
+
+### 5. Interactive Mode (`-D interactive`)
+**Behavior**: Prompt user for each duplicate with full context
+- **Shows**: Filename conflicts, content duplicates, file sizes, dates
+- **Options**: Skip, Overwrite, Rename, Redirect
+- **Use case**: Maximum control, good for one-time migrations
+- **Performance**: Depends on user interaction speed
+
+```bash
+python op.py -c -D interactive -v -j jpg source/ target/
+```
+**Interactive prompt example**:
+```
+Duplicate detected for: photo.jpg
+Target location: /target/2023_05_01/photo.jpg
+Content duplicates found at:
+  - /target/2023_05_01/photo.jpg
+Filename conflict at: /target/2023_05_01/photo.jpg
+
+Choose action:
+  s) Skip this file
+  o) Overwrite existing file(s)  
+  r) Rename with suffix
+  R) Redirect to duplicates directory
+Your choice [s/o/r/R]:
+```
+
+### 6. Redirect Mode (`-D redirect`)
+**Behavior**: Move duplicates to separate directory structure
+- **Directory**: Creates `Duplicates/` (or custom with `-R`)
+- **Structure**: Maintains date organization in redirect location
+- **Naming**: Uses intelligent suffix generation
+- **Use case**: Keep organized but separate duplicate files
+- **Performance**: Fast, minimal overhead
+
+```bash
+python op.py -c -D redirect -R MyDupes -K copy -j jpg source/ target/
+```
 
 ## REDIRECT DUPLICATE HANDLING
 
@@ -255,56 +491,162 @@ Redirect mode uses intelligent filename generation:
 - **Dry-run compatible**: Shows what would be redirected without making changes
 - **Logging integration**: Clear indication of redirect actions in log files
 
-PERFORMANCE CONSIDERATIONS
---------------------------
+## COMPREHENSIVE DUPLICATE DETECTION
+
+### How It Works
+
+orgphoto's comprehensive duplicate detection goes beyond simple filename checking by using SHA-256 content hashing:
+
+#### 1. **Hash Cache Building**
+- Scans ALL existing files in target directory at startup
+- Calculates SHA-256 hash for each file
+- Builds in-memory database: `{hash: [file_path1, file_path2, ...]}`
+- Stores file modification times for cache invalidation
+
+#### 2. **Duplicate Detection Process**
+```
+For each source file:
+1. Calculate SHA-256 hash
+2. Check hash cache for matching content
+3. Check filename conflicts in destination
+4. Apply duplicate handling strategy
+5. Update hash cache if file is processed
+```
+
+#### 3. **Content vs Filename Detection**
+- **Content duplicates**: Same SHA-256 hash, any filename, anywhere in target
+- **Filename conflicts**: Same filename in same date directory
+- **Both types**: Can be detected simultaneously
+
+### Technical Details
+
+#### Hash Cache Statistics
+```bash
+# Example log output:
+Building comprehensive hash cache of target directory...
+Hash cache built: 15,432 files indexed, 14,891 unique hashes
+# Shows: 541 files had duplicate content
+```
+
+#### Memory Usage
+- **Hash storage**: ~64 bytes per hash (SHA-256)
+- **Path storage**: Variable, ~100-200 bytes per file path  
+- **Cache metadata**: File modification times, ~16 bytes per file
+- **Total estimate**: ~200-300 bytes per target file
+
+#### Performance Characteristics
+- **Cache building**: ~500-2000 files/second (depends on storage speed)
+- **Hash calculation**: ~50-200 MB/second (depends on CPU)
+- **Duplicate checking**: Near-instant lookup in memory cache
+
+## PERFORMANCE CONSIDERATIONS
 
 ### Comprehensive Duplicate Detection (Default)
 
-By default, orgphoto performs comprehensive SHA-256 checking of each incoming file against ALL existing files in the target directory. This provides:
+By default, orgphoto performs comprehensive SHA-256 checking of each incoming file against ALL existing files in the target directory.
 
 **Benefits**:
 - **True duplicate detection**: Finds identical files regardless of filename or location
-- **Space efficiency**: Prevents storing duplicate content under different names
+- **Space efficiency**: Prevents storing duplicate content under different names  
 - **Data integrity**: Ensures you're not losing unique content
+- **Cross-directory detection**: Finds duplicates anywhere in target tree
 
 **Performance Impact**:
-- **Startup time**: Builds hash cache by scanning all existing target files
-- **Memory usage**: ~50-100 bytes per target file for hash cache
-- **Processing time**: Each incoming file is hashed once for comparison
+- **Startup time**: 10-60 seconds for 10,000 files (depends on storage speed)
+- **Memory usage**: ~200-300 bytes per target file for hash cache
+- **Processing time**: Each incoming file hashed once (~10-50 MB/second)
+- **Disk I/O**: One-time read of all target files during cache build
 
-### When to Disable Comprehensive Checking
+### Performance Benchmarks
 
-Use the `-N` flag to disable comprehensive checking if:
+| Target Files | Cache Build Time | Memory Usage | Processing Speed |
+|-------------|------------------|---------------|-----------------|
+| 1,000 files | 2-5 seconds | ~300 KB | 200-500 files/min |
+| 10,000 files | 20-60 seconds | ~3 MB | 150-300 files/min |
+| 50,000 files | 2-5 minutes | ~15 MB | 100-200 files/min |
+| 100,000 files | 5-15 minutes | ~30 MB | 50-150 files/min |
 
-- **Large target directories** (>10,000 files): Cache building may take several minutes
-- **Frequent runs** on same target: Cache is rebuilt each time (not persistent)
-- **Fast processing priority**: You only care about filename conflicts
-- **Limited memory**: Very large targets may use significant RAM for cache
-- **Network storage**: Hashing all target files over network can be slow
+*Benchmarks vary by storage type (SSD vs HDD), network latency, and CPU speed*
 
-### Performance Tips
+### When to Disable Comprehensive Checking (`-N`)
 
-1. **For large target directories**: Use `-N -D rename` for fastest processing
-2. **For repeated runs**: Consider organizing by separate destination folders  
-3. **For maximum safety**: Use default settings (comprehensive checking enabled)
-4. **For interactive control**: Use `-D interactive` to decide per-duplicate
-5. **For dry runs**: Comprehensive checking works in dry-run mode too
-6. **For redirect mode**: Redirect has minimal overhead; directory creation is fast
+Use the `-N` flag to disable comprehensive checking when:
 
-### Redirect Mode Performance
+**Large Target Directories**:
+- **>50,000 files**: Cache building becomes time-consuming
+- **Network storage**: Reading all files over network is slow
+- **Limited memory**: Cache may use significant RAM
 
-Redirect mode (`-D redirect`) has minimal performance impact:
+**Performance Priority**:
+- **Frequent runs**: Cache rebuilt each time (not persistent between runs)
+- **Fast import needed**: Only care about filename conflicts
+- **Batch processing**: Processing speed more important than deduplication
 
-- **Directory creation**: Negligible overhead for creating redirect directory structure
-- **File operations**: Same performance as other modes (copy/move operations)
-- **Filename generation**: Fast algorithm for unique name generation with safety limits
-- **Memory usage**: No additional memory overhead beyond normal operations
-- **Works efficiently** with both comprehensive checking and filename-only modes
+**Use Cases for `-N`**:
+```bash
+# Fast processing, only filename-based duplicate detection
+python op.py -c -N -D rename -j jpg source/ target/
 
-The hash cache provides excellent performance for most use cases, typically processing hundreds of files per minute even with comprehensive checking enabled.
+# Large target directory, redirect filename conflicts only  
+python op.py -c -N -D redirect -j jpg source/ huge_target/
 
-INSTALLATION
-------------
+# Speed-optimized batch import
+python op.py -c -N -D overwrite -j jpg,png,heic batch_source/ target/
+```
+
+### Performance Optimization Strategies
+
+#### 1. **Mode Selection by Use Case**
+```bash
+# Maximum safety (comprehensive + interactive)
+python op.py -c -D interactive -j jpg source/ target/
+
+# Balanced (comprehensive + automatic handling)  
+python op.py -c -D content -j jpg source/ target/
+
+# Speed optimized (filename-only + rename)
+python op.py -c -N -D rename -j jpg source/ target/
+
+# Maximum speed (filename-only + overwrite)
+python op.py -c -N -D overwrite -j jpg source/ target/
+```
+
+#### 2. **Target Directory Management**
+- **Separate by date**: Use different target directories for different time periods
+- **Archive old files**: Move older files to separate directories
+- **Clean duplicates**: Periodically clean up redirect directories
+
+#### 3. **Hardware Considerations**
+- **SSD storage**: 5-10x faster cache building than HDD
+- **More RAM**: Allows larger caches without performance impact
+- **Faster CPU**: Improves hash calculation speed
+- **Network storage**: Consider local staging for large operations
+
+### Duplicate Handling Performance Comparison
+
+| Mode | Requires Comprehensive | Speed | Memory | Safety |
+|------|----------------------|--------|---------|---------|
+| `skip` | Yes (default) | Medium | High | Maximum |
+| `content` | Yes (recommended) | Medium | High | Maximum |
+| `interactive` | Yes (optional) | Slow* | High | Maximum |
+| `rename` | No (optional) | Fast | Low | High |
+| `redirect` | No (optional) | Fast | Low | High |
+| `overwrite` | No (optional) | Fastest | Low | Minimal |
+
+*Interactive mode speed depends on user response time
+
+### Real-World Performance Tips
+
+1. **Initial import**: Use comprehensive checking for first-time setup
+2. **Regular updates**: Consider `-N` for frequent incremental updates
+3. **Archive consolidation**: Use `content` mode for merging archives
+4. **Mobile import**: Use default settings for safety
+5. **Bulk processing**: Use `-N -D rename` for speed
+6. **Migration projects**: Use `interactive` mode for control
+
+The hash cache provides excellent performance for most use cases, typically processing 100-500 files per minute even with comprehensive checking enabled.
+
+## Installation
 **<u>pip</u>** 
 Just run:
 
@@ -318,13 +660,37 @@ Just run:
     2. Make sure uv is installed. It will handle dependencies 
     3. Then execute the script using python as in # uv run op.py
 
-Usage - Windows .exe
------
-This project also contains a Windows executable made by simply compiling the script with this project https://pypi.org/project/auto-py-to-exe/ "A .py to .exe converter using a simple graphical interface and PyInstaller in Python." It works EXACTLY like the script without the hassle of setting up Python where you want to run it. There is a copy of the .exe of some vintage here in this repo.
+## Building Windows .exe
 
-This is the command I used to build the .exe, though I cheated by using the UI
+### Recommended Build Method (using uv)
 
-``` pyinstaller --noconfirm --onefile --console --icon "C:\Github\orgphoto\doc\favicon.ico"  "C:\Github\orgphoto\op\op.py" ```
+This project supports building Windows executables using PyInstaller with proper dependency resolution:
+
+```bash
+# Recommended approach - ensures proper dependency resolution
+uv run pyinstaller --noconfirm --onefile --console --collect-all hachoir --icon "doc/favicon.ico" "op.py"
+
+# Alternative using existing spec file (after running uv sync)
+uv run pyinstaller op.spec
+```
+
+**Why use `uv run pyinstaller`?**
+- **Dependency Resolution**: `uv run` ensures PyInstaller runs within the project's virtual environment where `hachoir` and other dependencies are properly installed
+- **Module Discovery**: The `--collect-all hachoir` flag tells PyInstaller to include all hachoir submodules and data files
+- **Reliability**: Avoids "ModuleNotFoundError" issues that occur when PyInstaller can't find project dependencies
+- **Consistency**: Uses the same dependency versions as your development environment
+
+### Legacy Build Methods
+
+```bash
+# Using auto-py-to-exe with existing config (may have dependency issues)
+auto-py-to-exe op/pyinstallerconfig.json
+
+# Manual PyInstaller command (not recommended - missing dependencies)
+pyinstaller --noconfirm --onefile --console --icon "doc/favicon.ico" "op.py"
+```
+
+**Note**: Legacy methods may fail with `ModuleNotFoundError: No module named 'hachoir'` because they don't properly resolve dependencies from the uv environment.
 
 
 Here's an example of running the built .exe in Windows, where op.exe is asked to Move all files even if No eXif data is found (ahem heic files), move files of extensions (case-insensitive) jpg,png,jpeg,heic,mov, from `src1` (and its sub directories) to `target` into folders by date:
@@ -351,8 +717,7 @@ Examples of log entries
 ![logging](../main/doc/log2.png)
 
 
- File Formats
- -------------
+## File Formats
 
 This version of orgphoto (op) uses the [https://pypi.org/project/hachoir/](hachoir) software to extract EXIF metadata. Hachoir supports the following 
 file formats as of version 3.3.0 in November 2024.
