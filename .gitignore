@@ -6,7 +6,7 @@
 # Packages
 *.egg
 *.egg-info
-dist
+# dist
 build
 eggs
 parts
@@ -35,4 +35,4 @@ nosetests.xml
 .project
 .pydevproject
 /photocopy/venv
-op/op2.py
+

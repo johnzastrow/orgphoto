@@ -1,0 +1,18 @@
+----------v. 1.3 Cheesy Dibbles 2025-06-17++ Started: 2025-08-29 17:55:32
+options: {'source_dir': 'testing/src1/', 'destination_dir': 'testing/target_test/', 'move': False, 'copy': True, 'extense': 'jpg,heic', 'verbose': True, 'exifOnly': 'no', 'dryrun': False, 'duplicate_handling': 'rename', 'no_comprehensive_check': False, 'redirect_dir': 'Duplicates', 'duplicate_keyword': 'test', 'examples': False}
+Building comprehensive hash cache of target directory...
+Hash cache built: 1 files indexed, 1 unique hashes
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2022_10_23
+created new destination subdir: /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2022_10_23
+  20221023_171427392_iOS.jpg                  2022-10-23 13:14:27 copied /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2022_10_23
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2023_06_20
+created new destination subdir: /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2025_08_29
+  20230620_120117000_iOS.jpg        no EXIF   2025-08-29 12:38:28 copied /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2025_08_29
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2023_10_28
+  20231028_185941501_iOS.jpg        no EXIF   2025-08-29 12:38:28 copied /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2025_08_29
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2024_01_13
+Unable to extract metadata for /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2024_01_13/20231205_000437026_iOS.heic
+  20231205_000437026_iOS.heic       no EXIF   2025-08-29 12:38:28 copied /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2025_08_29
+Total files matched: 4, processed: 4
+__________** Ended: 2025-08-29 17:55:40
