@@ -66,3 +66,70 @@
 
   The redirect functionality is fully implemented and tested, providing a powerful way to organize duplicates separately from
   the main organized files while maintaining clear naming conventions.
+
+## October 2, 2025
+
+● Summary
+
+  I have successfully implemented version visibility enhancements with the following features:
+
+  Version Display Improvements:
+
+  1. Enhanced Help Output:
+  - Version now appears in the help header: `usage: op.py (orgphoto v. 1.5.0 2025-10-02) [options]...`
+  - Modified ArgumentParser to include version in the `prog` parameter
+  - Provides clear version tracking for all help command usage
+
+  2. Version Display When Run Without Arguments:
+  - Created custom `VersionedArgumentParser` class extending argparse.ArgumentParser
+  - Override `error()` method to display version before error messages
+  - When required arguments are missing, outputs: `orgphoto v. 1.5.0 2025-10-02` followed by error
+  - Improves user experience by providing version context even when command is incomplete
+
+  3. Version Tracking Updates:
+  - Updated `__version__` from `1.4.1` to `1.5.0` (MINOR version bump for new features)
+  - Updated date to `2025-10-02`
+  - Added comprehensive version history entry documenting the changes
+  - Follows semantic versioning standards as specified in CLAUDE.md
+
+  4. Documentation Updates:
+  - Updated CLAUDE.md with new version and features
+  - Updated README.md with "What's New in v1.5.0" section
+  - Enhanced usage examples to reflect new version display
+  - Added note about version visibility improvements
+
+  Usage Examples:
+
+  # Display help with version in header
+  python op.py --help
+  # Shows: usage: op.py (orgphoto v. 1.5.0 2025-10-02) [options]...
+
+  # Run without arguments - shows version before error
+  python op.py
+  # Shows: orgphoto v. 1.5.0 2025-10-02
+  #        op.py (orgphoto v. 1.5.0 2025-10-02): error: the following arguments are required...
+
+  # Explicit version flag still works
+  python op.py --version
+  # Shows: op.py (orgphoto v. 1.5.0 2025-10-02) 1.5.0
+
+  Key Features Delivered:
+
+  ✅ Version display in help output header
+  ✅ Version display when run without arguments
+  ✅ Custom ArgumentParser class for enhanced error handling
+  ✅ Updated version to 1.5.0 per semantic versioning standards
+  ✅ Comprehensive documentation updates across all files
+  ✅ Maintained backward compatibility with existing functionality
+  ✅ Improved user experience with consistent version visibility
+
+  Technical Implementation:
+
+  - Custom `VersionedArgumentParser` class inherits from `argparse.ArgumentParser`
+  - Overrides `error()` method to inject version information before error output
+  - Smart detection: Only shows version on "required arguments" errors when no args provided
+  - Uses `sys.stderr` for proper error stream handling
+  - Integrates seamlessly with existing argument parsing logic
+
+  The version visibility enhancements are fully implemented and tested, providing users with clear version
+  information throughout all interaction points with the application.

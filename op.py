@@ -95,8 +95,10 @@ config.quiet = True
 # v1.4.0 - Added all file types as default (no extension requirement)
 #          Enhanced comprehensive help text for all options
 # v1.4.1 - Updated documentation and README with new features and examples
-__version__ = "1.4.1"
-myversion = f"v. {__version__} 2025-08-31"
+# v1.5.0 - Added version display in help output header and when run without arguments
+#          Enhanced user experience with version visibility throughout interface
+__version__ = "1.5.0"
+myversion = f"v. {__version__} 2025-10-02"
 
 
 def calculate_file_hash(file_path: Path, algorithm: str = 'sha256') -> str:
@@ -925,6 +927,19 @@ def print_examples():
     print(examples)
 
 
+class VersionedArgumentParser(argparse.ArgumentParser):
+    """Custom ArgumentParser that displays version on error when no arguments provided."""
+
+    def error(self, message):
+        """Override error method to show version before error message."""
+        # Check if this is a "required arguments" error with no args provided
+        if "required" in message and len(sys.argv) == 1:
+            sys.stderr.write(f"orgphoto {myversion}\n\n")
+        sys.stderr.write(f"{self.prog}: error: {message}\n")
+        sys.stderr.write(f"Try '{self.prog} --help' for more information.\n")
+        sys.exit(2)
+
+
 def parse_arguments(args=None):
     """
     Parse command line arguments using argparse.
@@ -947,13 +962,14 @@ def parse_arguments(args=None):
         print_examples()
         sys.exit(0)
 
-    # Regular argument parsing
-    parser = argparse.ArgumentParser(
+    # Regular argument parsing with custom parser that shows version on error
+    parser = VersionedArgumentParser(
+        prog=f"op.py (orgphoto {myversion})",
         description="Organize files by date with comprehensive duplicate detection. Scans source directory recursively, extracts creation dates from EXIF metadata or filesystem, and organizes files into date-based subdirectories (YYYY_MM_DD). Supports all file types recognized by hachoir library with advanced duplicate handling strategies.",
         epilog="""
 IMPORTANT NOTES:
 • If neither --move nor --copy is specified, script prompts for dry-run mode
-• All operations are logged to 'events.log' in destination directory  
+• All operations are logged to 'events.log' in destination directory
 • Use --examples to see comprehensive usage scenarios
 • Default behavior processes ALL file types (not just images)
 • Comprehensive SHA-256 duplicate checking enabled by default for accuracy

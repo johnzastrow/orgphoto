@@ -136,9 +136,11 @@ uv run op.py -m -D interactive -j jpg source/ target/  # User can choose redirec
    - MINOR: New features, significant enhancements (like new default behavior)
    - PATCH: Bug fixes, minor improvements, documentation updates
 
-**Current version: 1.4.0** (as of 2025-08-31)
+**Current version: 1.5.0** (as of 2025-10-02)
 
 **Recent version history:**
+- v1.5.0: Added version display in help output header and when run without arguments
+- v1.4.1: Updated documentation and README with new features and examples
 - v1.4.0: Added all file types as default (no extension requirement), enhanced comprehensive help text
 - v1.3.x: Original comprehensive duplicate detection system
 

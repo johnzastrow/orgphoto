@@ -11,7 +11,12 @@
       "Bash(cp:*)",
       "Bash(uv add:*)",
       "Bash(cat:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(python3:*)",
+      "Bash(command -v:*)",
+      "Read(//home/jcz/.local/bin/**)",
+      "Read(//home/jcz/**)",
+      "Bash(~/.local/bin/uv run:*)"
     ],
     "deny": []
   }
