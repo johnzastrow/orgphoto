@@ -38,12 +38,18 @@ and copies or moves them into subfolders in a destination directory, organized b
 
 **Key features**: Comprehensive SHA-256 duplicate detection, intelligent conflict resolution, and flexible duplicate handling modes.
 
-## ✨ What's New in v1.4.0
+## ✨ What's New in v1.5.0
+
+- **📌 Version Visibility**: Version now displays in help output header and when run without arguments
+- **🎯 Enhanced User Experience**: Improved version tracking and visibility throughout the interface
+- **📖 Better Help Output**: Help command now shows version information prominently
+- **🔧 Smart Error Messages**: Running without arguments now displays version before error message
+
+### Previous Updates (v1.4.x)
 
 - **🎯 All File Types by Default**: No need to specify extensions - processes all supported formats automatically
-- **📖 Enhanced Help System**: Comprehensive help text with detailed explanations and real-world examples  
+- **📖 Enhanced Help System**: Comprehensive help text with detailed explanations and real-world examples
 - **🔧 Better User Experience**: Streamlined workflow for both beginners and power users
-- **📊 Version Display**: Shows version number during operation for better tracking
 
 A common use case might be to move them from a mobile device into archive folders, or to reorganize archives. 
 
@@ -89,11 +95,12 @@ From the packaged .exe. But the script is the same code.
 
 ```bash
 C:\Users\user\Github\orgphoto\output>op.exe -h
-usage: op.exe [-h] [-m | -c] [-j EXT] [-v] [-x {yes,no,fs}] [-d] 
-              [-D DUPLICATE_HANDLING] [-N] [-R DIR] [-K WORD] [--examples] 
+usage: op.exe (orgphoto v. 1.5.0 2025-10-02) [-h] [-m | -c] [-j EXT] [-v]
+              [-x {yes,no,fs}] [-d] [-D DUPLICATE_HANDLING] [-N] [-R DIR]
+              [-K WORD] [--examples] [--version]
               SOURCE_DIR DEST_DIR
 
-Organize and copy/move photos and videos by date
+Organize files by date with comprehensive duplicate detection
 
 positional arguments:
   SOURCE_DIR            Source directory containing images/videos to organize
@@ -118,8 +125,11 @@ options:
   -K, --duplicate-keyword WORD
                         Keyword for duplicate filenames [default: duplicate]
   --examples            Show usage examples and exit
+  --version             Show program version and exit
 
 If neither --move nor --copy is specified, the script will prompt to run in dryrun mode simulating moving files.
+
+Note: Version information now displays in the usage line and when running without arguments for better tracking.
 ```
 
 ## Usage Examples
