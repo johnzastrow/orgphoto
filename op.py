@@ -97,8 +97,9 @@ config.quiet = True
 # v1.4.1 - Updated documentation and README with new features and examples
 # v1.5.0 - Added version display in help output header and when run without arguments
 #          Enhanced user experience with version visibility throughout interface
-__version__ = "1.5.0"
-myversion = f"v. {__version__} 2025-10-02"
+# v1.5.1 - Fixed version output appearing multiple times
+__version__ = "1.5.1"
+myversion = f"v. {__version__} 2025-10-04"
 
 
 def calculate_file_hash(file_path: Path, algorithm: str = 'sha256') -> str:
@@ -935,8 +936,11 @@ class VersionedArgumentParser(argparse.ArgumentParser):
         # Check if this is a "required arguments" error with no args provided
         if "required" in message and len(sys.argv) == 1:
             sys.stderr.write(f"orgphoto {myversion}\n\n")
-        sys.stderr.write(f"{self.prog}: error: {message}\n")
-        sys.stderr.write(f"Try '{self.prog} --help' for more information.\n")
+            sys.stderr.write(f"error: {message}\n")
+            sys.stderr.write(f"Try 'op.py --help' for more information.\n")
+        else:
+            sys.stderr.write(f"{self.prog}: error: {message}\n")
+            sys.stderr.write(f"Try '{self.prog} --help' for more information.\n")
         sys.exit(2)
 
 
@@ -964,7 +968,7 @@ def parse_arguments(args=None):
 
     # Regular argument parsing with custom parser that shows version on error
     parser = VersionedArgumentParser(
-        prog=f"op.py (orgphoto {myversion})",
+        prog="op.py",
         description="Organize files by date with comprehensive duplicate detection. Scans source directory recursively, extracts creation dates from EXIF metadata or filesystem, and organizes files into date-based subdirectories (YYYY_MM_DD). Supports all file types recognized by hachoir library with advanced duplicate handling strategies.",
         epilog="""
 IMPORTANT NOTES:
@@ -1122,6 +1126,7 @@ def main(args=None):
         action = "copy"
     else:
         # Neither move nor copy specified: prompt user
+        print(f"orgphoto {myversion}")
         print("Warning: Neither --move nor --copy specified.")
         print(
             "Would you like to run in dryrun mode simulating moving files? [Y/n]: ",
@@ -1146,9 +1151,8 @@ def main(args=None):
     # Set up logging to a file in the destination directory
     logger = set_up_logging(destination_dir, parsed_args.verbose)
 
-    # Display version and log script start with MariaDB TIMESTAMP format (YYYY-MM-DD HH:MM:SS)
+    # Log script start with MariaDB TIMESTAMP format (YYYY-MM-DD HH:MM:SS)
     start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"orgphoto {myversion}")
     logger.info(f"{10 * '-'}{myversion}++ Started: {start_time}")
     logger.debug("options: %s", vars(parsed_args))
 

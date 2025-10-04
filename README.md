@@ -38,7 +38,12 @@ and copies or moves them into subfolders in a destination directory, organized b
 
 **Key features**: Comprehensive SHA-256 duplicate detection, intelligent conflict resolution, and flexible duplicate handling modes.
 
-## ✨ What's New in v1.5.0
+## ✨ What's New in v1.5.1
+
+- **🐛 Bug Fix**: Fixed version output appearing multiple times when running without arguments
+- **🎯 Cleaner Output**: Version now displays exactly once with cleaner error messages
+
+### Previous Updates (v1.5.0)
 
 - **📌 Version Visibility**: Version now displays in help output header and when run without arguments
 - **🎯 Enhanced User Experience**: Improved version tracking and visibility throughout the interface
@@ -95,9 +100,9 @@ From the packaged .exe. But the script is the same code.
 
 ```bash
 C:\Users\user\Github\orgphoto\output>op.exe -h
-usage: op.exe (orgphoto v. 1.5.0 2025-10-02) [-h] [-m | -c] [-j EXT] [-v]
-              [-x {yes,no,fs}] [-d] [-D DUPLICATE_HANDLING] [-N] [-R DIR]
-              [-K WORD] [--examples] [--version]
+usage: op.py [-h] [-m | -c] [-j EXT] [-v] [-x {yes,no,fs}] [-d]
+              [-D DUPLICATE_HANDLING] [-N] [-R DIR] [-K WORD] [--examples]
+              [--version]
               SOURCE_DIR DEST_DIR
 
 Organize files by date with comprehensive duplicate detection
@@ -129,7 +134,7 @@ options:
 
 If neither --move nor --copy is specified, the script will prompt to run in dryrun mode simulating moving files.
 
-Note: Version information now displays in the usage line and when running without arguments for better tracking.
+Note: Version information displays when running without arguments. Use --version to see the version number.
 ```
 
 ## Usage Examples
@@ -678,7 +683,7 @@ This project supports building Windows executables using PyInstaller with proper
 
 ```bash
 # Recommended approach - ensures proper dependency resolution
-uv run pyinstaller --noconfirm --onefile --console --collect-all hachoir --icon "doc/favicon.ico" "op.py"
+uv run pyinstaller --noconfirm --onefile --console --collect-all hachoir --exclude-module hachoir.wx.tree_view --icon "doc/favicon.ico" "op.py"
 
 # Alternative using existing spec file (after running uv sync)
 uv run pyinstaller op.spec

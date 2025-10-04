@@ -67,6 +67,68 @@
   The redirect functionality is fully implemented and tested, providing a powerful way to organize duplicates separately from
   the main organized files while maintaining clear naming conventions.
 
+## October 4, 2025
+
+● Summary
+
+  Fixed version output appearing multiple times when running without arguments:
+
+  Version Display Bug Fix (v1.5.1):
+
+  1. Problem Identified:
+  - Version was appearing 3 times when run without arguments:
+    * Once in print statement (line 1151)
+    * Once in program name in ArgumentParser
+    * Once in custom error handler
+  - Created confusing and redundant output
+
+  2. Solution Implemented:
+  - Removed version from ArgumentParser prog parameter (now just "op.py")
+  - Removed print statement from normal execution flow
+  - Enhanced error handler to show clean error messages
+  - Added version display only in interactive prompt mode (when neither -m nor -c specified)
+  - Version now appears exactly once when run without arguments
+
+  3. Version Tracking Updates:
+  - Updated `__version__` from `1.5.0` to `1.5.1` (PATCH version bump for bug fix)
+  - Updated date to `2025-10-04`
+  - Added version history entry documenting the bug fix
+  - Follows semantic versioning standards as specified in CLAUDE.md
+
+  4. Documentation Updates:
+  - Updated CLAUDE.md with new version 1.5.1
+  - Updated README.md with "What's New in v1.5.1" section
+  - Fixed usage examples to reflect cleaner output
+  - Updated notes about version visibility
+
+  Output Behavior After Fix:
+
+  # Run without arguments - shows version once
+  python op.py
+  # Shows: orgphoto v. 1.5.1 2025-10-04
+  #        error: the following arguments are required: SOURCE_DIR, DEST_DIR
+  #        Try 'op.py --help' for more information.
+
+  # Run with arguments - no version shown (as expected)
+  python op.py -c source/ target/
+  # Runs normally without version display
+
+  # Interactive mode - shows version
+  python op.py source/ target/
+  # Shows: orgphoto v. 1.5.1 2025-10-04
+  #        Warning: Neither --move nor --copy specified...
+
+  Key Features Delivered:
+
+  ✅ Fixed duplicate version output bug
+  ✅ Cleaner error messages
+  ✅ Version appears exactly once when appropriate
+  ✅ Updated version to 1.5.1 per semantic versioning standards
+  ✅ Comprehensive documentation updates across all files
+  ✅ Improved user experience with non-redundant output
+
+  The bug fix is complete and version display now works correctly without repetition.
+
 ## October 2, 2025
 
 ● Summary
