@@ -136,9 +136,15 @@ uv run op.py -m -D interactive -j jpg source/ target/  # User can choose redirec
    - MINOR: New features, significant enhancements (like new default behavior)
    - PATCH: Bug fixes, minor improvements, documentation updates
 
-**Current version: 1.5.1** (as of 2025-10-04)
+**Current version: 2.0.1** (as of 2025-10-14)
 
 **Recent version history:**
+- v2.0.1: Enhanced session header in log file with clear version information and formatting
+- v2.0.0: MAJOR UPDATE - Intelligent master file selection system
+  - Automatically determines best master file based on: shortest filename, oldest date, no duplicate keywords
+  - Demotes existing files when incoming file is better master candidate
+  - Protects master files from being overwritten by inferior duplicates
+  - Comprehensive logging of master selection criteria and demotion actions
 - v1.5.1: Fixed version output appearing multiple times
 - v1.5.0: Added version display in help output header and when run without arguments
 - v1.4.1: Updated documentation and README with new features and examples

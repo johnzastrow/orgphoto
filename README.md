@@ -38,17 +38,28 @@ and copies or moves them into subfolders in a destination directory, organized b
 
 **Key features**: Comprehensive SHA-256 duplicate detection, intelligent conflict resolution, and flexible duplicate handling modes.
 
-## ✨ What's New in v1.5.1
+## ✨ What's New in v2.0.1
 
-- **🐛 Bug Fix**: Fixed version output appearing multiple times when running without arguments
-- **🎯 Cleaner Output**: Version now displays exactly once with cleaner error messages
+- **📊 Enhanced Log Headers**: Professional session headers in log files with clear version information
+- **🎯 Improved Readability**: Structured log formatting with visual separators between sessions
+- **📝 Better Tracking**: Each log session now clearly shows program version and timestamps
 
-### Previous Updates (v1.5.0)
+### Major Update: v2.0.0 - Intelligent Master File Selection
 
-- **📌 Version Visibility**: Version now displays in help output header and when run without arguments
-- **🎯 Enhanced User Experience**: Improved version tracking and visibility throughout the interface
-- **📖 Better Help Output**: Help command now shows version information prominently
-- **🔧 Smart Error Messages**: Running without arguments now displays version before error message
+- **🧠 Smart Master Selection**: Automatically determines the best "master" file among duplicates based on:
+  - ✅ No duplicate keywords ("copy", "duplicate", "(1)", etc.) - highest priority
+  - ✅ Shortest filename - simpler names are typically originals
+  - ✅ Oldest creation/modification date - earlier files are likely originals
+- **🔄 Automatic File Demotion**: When incoming file is better master, existing files are automatically demoted
+- **🛡️ Master Protection**: Master files are protected from being overwritten by inferior duplicates
+- **🔍 Comprehensive Logging**: Detailed logs of master selection criteria, conflict reasons, and demotion actions
+- **⚡ Intelligent Conflict Resolution**: Handles complex scenarios with multiple duplicates
+
+### Previous Updates (v1.5.x)
+
+- **📌 Version Visibility**: Version displays in help output and when run without arguments
+- **🐛 Bug Fixes**: Fixed version output duplication issues
+- **🎯 Enhanced User Experience**: Improved version tracking throughout the interface
 
 ### Previous Updates (v1.4.x)
 
@@ -81,12 +92,19 @@ Note this is a major rewrite of the upstream project skorokithakis/photocopy and
 - Uses pathlib for modern, robust path handling.
 
 ### Advanced Duplicate Detection
+- **🧠 Intelligent Master File Selection** (NEW in v2.0.0):
+  - **Automatic master identification**: Determines best file to keep based on multiple criteria
+  - **Priority ranking**: No duplicate keywords > Shortest filename > Oldest date
+  - **Keyword detection**: Recognizes "copy", "duplicate", "(1)", "_copy", and international variations
+  - **Smart demotion**: Automatically moves inferior files when better master arrives
+  - **Master protection**: Prevents accidental overwriting of master files
+  - **Comprehensive logging**: Details master selection decisions and criteria
 - **Comprehensive SHA256 checking**: By default, checks each incoming file against ALL existing files in target directory (not just filename conflicts)
 - **Content-based detection**: Uses SHA-256 hashing to detect truly identical files regardless of filename or location
 - **Hash caching**: Builds and maintains an in-memory hash database of target files for efficient duplicate detection
 - **Multiple duplicate handling modes**:
   - `skip` (default) - Skip if filename exists or identical content found anywhere
-  - `overwrite` - Always replace existing files 
+  - `overwrite` - Master-aware: protects master files, renames inferior duplicates
   - `rename` - Add numeric suffix to duplicates (e.g., `photo_001.jpg`)
   - `content` - Compare file hashes; skip identical content, rename different content
   - `interactive` - Prompt user for each duplicate with full context
@@ -505,6 +523,154 @@ Redirect mode uses intelligent filename generation:
 - **Interactive mode support**: User can choose redirect option when prompted
 - **Dry-run compatible**: Shows what would be redirected without making changes
 - **Logging integration**: Clear indication of redirect actions in log files
+
+## INTELLIGENT MASTER FILE SELECTION (v2.0.0+)
+
+### Overview
+
+orgphoto automatically determines which file should be the "master" (definitive version) when duplicates are detected. This intelligent system ensures you keep the best quality original files while properly handling copies and duplicates.
+
+### How Master Selection Works
+
+When duplicates are detected, orgphoto evaluates ALL conflicting files (both incoming and existing) using a three-tier priority system:
+
+#### Priority 1: No Duplicate Keywords (Highest Priority)
+Files WITHOUT duplicate keywords are strongly preferred as masters:
+
+**Detected keywords**:
+- Word-based: `copy`, `duplicate`, `version`, `backup`, `alt`, `alternative`
+- International: `copie` (French), `kopie` (German), `copia` (Spanish/Italian)
+- Numbered patterns at end: `(1)`, `(2)`, `_copy_1`, `_duplicate_001`, ` 2`
+
+**Examples**:
+```
+photo.jpg             → NO keywords (score: 0) ✓ BEST
+photo_copy.jpg        → Has "copy" (score: 1)
+vacation (1).jpg      → Has "(1)" (score: 1)
+sunset_duplicate.jpg  → Has "duplicate" (score: 1)
+```
+
+#### Priority 2: Shortest Filename
+Among files with same keyword status, shorter names are preferred (originals are typically shorter):
+
+**Examples**:
+```
+photo.jpg                    → Length 9 ✓ BEST
+photo_edited.jpg             → Length 16
+photo_edited_final.jpg       → Length 22
+```
+
+#### Priority 3: Oldest Creation/Modification Date
+If names are equally simple, older files are preferred (first created is typically original):
+
+**Examples**:
+```
+photo.jpg (2023-01-15 10:30) → Older ✓ BEST
+photo.jpg (2023-01-15 11:45) → Newer
+photo.jpg (2023-01-16 09:00) → Newest
+```
+
+### Master Selection Actions
+
+#### When Incoming File is Master
+If the incoming file is determined to be the better master:
+
+1. **Existing files are demoted** - Moved according to duplicate handling mode
+2. **Incoming file takes primary position** - Placed in intended location
+3. **Logged as promotion**: `[PROMOTED TO MASTER]`
+
+**Log example**:
+```
+MASTER SELECTION: Chose photo.jpg as master (incoming)
+  Criteria: has_dup_keywords=False, name_length=9, date=2023-01-15 10:30:00
+  Non-masters (1): ['photo_copy.jpg']
+MASTER PROMOTION: Incoming file photo.jpg is the better master
+  DEMOTION: photo_copy.jpg will be moved to duplicate location
+  DEMOTED: photo_copy.jpg -> Duplicates/photo_copy_duplicate.jpg
+```
+
+#### When Existing File is Master
+If an existing file is the better master:
+
+1. **Master file is protected** - Cannot be overwritten
+2. **Incoming file follows duplicate mode** - Skipped, renamed, or redirected
+3. **Logged as retention**: `[SKIPPED - not master]` or `[RENAMED - master protected]`
+
+**Log example**:
+```
+MASTER SELECTION: Chose photo.jpg as master (existing)
+  Criteria: has_dup_keywords=False, name_length=9, date=2023-01-15 10:30:00
+  Non-masters (1): ['photo copy.jpg']
+MASTER RETAINED: Existing file photo.jpg remains as master
+  photo copy.jpg -> skipped - existing file is better master
+```
+
+### Master-Aware Duplicate Modes
+
+All duplicate handling modes now respect master file selection:
+
+| Mode | Master is Existing | Master is Incoming |
+|------|-------------------|-------------------|
+| `skip` | Skip incoming | Demote existing, place incoming |
+| `overwrite` | **Protect master**, rename incoming | Demote existing, place incoming |
+| `rename` | Rename incoming | Demote existing, place incoming |
+| `content` | Check content, handle accordingly | Demote existing if different |
+| `interactive` | Master indicated in prompt | Demote existing with user confirmation |
+| `redirect` | Redirect incoming | Demote existing to redirect |
+
+### Real-World Scenarios
+
+#### Scenario 1: Consolidating Multiple Archives
+```bash
+# Situation: Three archives with duplicates
+archive1/vacation.jpg
+archive2/vacation_copy.jpg
+archive3/vacation (1).jpg
+
+# Result: Master selection picks vacation.jpg (no keywords)
+# Others demoted: vacation_copy_duplicate.jpg, vacation (1)_duplicate.jpg
+```
+
+#### Scenario 2: Mobile Device Sync
+```bash
+# Phone creates: IMG_1234.jpg (original)
+# Computer backup: IMG_1234 (1).jpg (duplicate)
+
+# Result: Original IMG_1234.jpg recognized as master
+# Backup version demoted automatically
+```
+
+#### Scenario 3: Mixed Quality Duplicates
+```bash
+# High quality original: photo.jpg (5MB, 2023-01-15)
+# Lower quality copy: photo_compressed.jpg (1MB, 2023-01-16)
+
+# Result: photo.jpg selected (shorter name, older)
+# Compressed version handled as duplicate
+```
+
+### Configuration
+
+Master selection is **automatic and always enabled**. No configuration needed, but behavior adapts to duplicate handling mode:
+
+```bash
+# Master selection with skip mode
+python op.py -c -D skip -j jpg source/ target/
+
+# Master selection with redirect (demoted files go to redirect dir)
+python op.py -c -D redirect -R Duplicates -j jpg source/ target/
+
+# Master selection with rename (demoted files renamed in place)
+python op.py -c -D rename -K old -j jpg source/ target/
+```
+
+### Benefits
+
+- **Intelligent organization**: Best files automatically prioritized
+- **Prevents data loss**: Never lose original files to inferior duplicates
+- **Automatic cleanup**: Inferior duplicates properly categorized
+- **Audit trail**: Comprehensive logging of all decisions
+- **Time saving**: No manual sorting of duplicates needed
 
 ## COMPREHENSIVE DUPLICATE DETECTION
 

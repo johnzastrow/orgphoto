@@ -16,3 +16,114 @@ Unable to extract metadata for /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2
   20231205_000437026_iOS.heic       no EXIF   2025-08-29 12:38:28 copied /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2025_08_29
 Total files matched: 4, processed: 4
 __________** Ended: 2025-08-29 17:55:40
+----------v. 2.0.0 2025-10-14++ Started: 2025-10-14 08:52:52
+Processing files with extensions: .jpg
+Building comprehensive hash cache of target directory...
+Hash cache built: 5 files indexed, 5 unique hashes
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2022_10_23
+  DUPLICATE CONFLICT: 20221023_171427392_iOS.jpg matches existing file /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2022_10_23/20221023_171427392_iOS.jpg (reason: identical content)
+  DUPLICATE CONFLICT: 20221023_171427392_iOS.jpg -> /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2022_10_23/20221023_171427392_iOS.jpg (reason: filename AND content match)
+  MASTER SELECTION: Chose 20221023_171427392_iOS.jpg as master (incoming)
+    Criteria: has_dup_keywords=True, name_length=26, date=2022-10-23 13:14:27
+    Non-masters (1): ['20221023_171427392_iOS.jpg']
+  MASTER PROMOTION: Incoming file 20221023_171427392_iOS.jpg is the better master
+    DEMOTION: 20221023_171427392_iOS.jpg will be moved to duplicate location
+    WOULD DEMOTE: 20221023_171427392_iOS.jpg [DRY RUN]
+  20221023_171427392_iOS.jpg                  2022-10-23 13:14:27 copied /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2022_10_23 [PROMOTED TO MASTER] [DRY RUN]
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2023_06_20
+  20230620_120117000_iOS.jpg        no EXIF     skipped
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2023_10_28
+  20231028_185941501_iOS.jpg        no EXIF     skipped
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2024_01_13
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/src2
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/src2/src3
+Total files matched: 3, processed: 1
+__________** Ended: 2025-10-14 08:53:09
+----------v. 2.0.0 2025-10-14++ Started: 2025-10-14 08:54:02
+Processing files with extensions: .jpg
+Building comprehensive hash cache of target directory...
+Hash cache built: 5 files indexed, 5 unique hashes
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2022_10_23
+  DUPLICATE CONFLICT: 20221023_171427392_iOS.jpg matches existing file /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2022_10_23/20221023_171427392_iOS.jpg (reason: identical content)
+  DUPLICATE CONFLICT: 20221023_171427392_iOS.jpg -> /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2022_10_23/20221023_171427392_iOS.jpg (reason: filename AND content match)
+  MASTER SELECTION: Chose 20221023_171427392_iOS.jpg as master (incoming)
+    Criteria: has_dup_keywords=False, name_length=26, date=2022-10-23 13:14:27
+    Non-masters (1): ['20221023_171427392_iOS.jpg']
+  MASTER PROMOTION: Incoming file 20221023_171427392_iOS.jpg is the better master
+    DEMOTION: 20221023_171427392_iOS.jpg will be moved to duplicate location
+    WOULD DEMOTE: 20221023_171427392_iOS.jpg [DRY RUN]
+  20221023_171427392_iOS.jpg                  2022-10-23 13:14:27 copied /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2022_10_23 [PROMOTED TO MASTER] [DRY RUN]
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2023_06_20
+  20230620_120117000_iOS.jpg        no EXIF     skipped
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2023_10_28
+  20231028_185941501_iOS.jpg        no EXIF     skipped
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2024_01_13
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/src2
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/src2/src3
+Total files matched: 3, processed: 1
+__________** Ended: 2025-10-14 08:54:24
+================================================================================
+orgphoto - Photo Organization Tool
+Version: 2.0.1 (Release Date: 2025-10-14)
+Session Started: 2025-10-14 08:59:33
+================================================================================
+Processing files with extensions: .jpg
+Building comprehensive hash cache of target directory...
+Hash cache built: 5 files indexed, 5 unique hashes
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2022_10_23
+  DUPLICATE CONFLICT: 20221023_171427392_iOS.jpg matches existing file /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2022_10_23/20221023_171427392_iOS.jpg (reason: identical content)
+  DUPLICATE CONFLICT: 20221023_171427392_iOS.jpg -> /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2022_10_23/20221023_171427392_iOS.jpg (reason: filename AND content match)
+  MASTER SELECTION: Chose 20221023_171427392_iOS.jpg as master (incoming)
+    Criteria: has_dup_keywords=False, name_length=26, date=2022-10-23 13:14:27
+    Non-masters (1): ['20221023_171427392_iOS.jpg']
+  MASTER PROMOTION: Incoming file 20221023_171427392_iOS.jpg is the better master
+    DEMOTION: 20221023_171427392_iOS.jpg will be moved to duplicate location
+    WOULD DEMOTE: 20221023_171427392_iOS.jpg [DRY RUN]
+  20221023_171427392_iOS.jpg                  2022-10-23 13:14:27 copied /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2022_10_23 [PROMOTED TO MASTER] [DRY RUN]
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2023_06_20
+  20230620_120117000_iOS.jpg        no EXIF     skipped
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2023_10_28
+  20231028_185941501_iOS.jpg        no EXIF     skipped
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2024_01_13
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/src2
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/src2/src3
+Total files matched: 3, processed: 1
+================================================================================
+Session Ended: 2025-10-14 08:59:52
+================================================================================
+
+================================================================================
+orgphoto - Photo Organization Tool
+Version: 2.0.1 (Release Date: 2025-10-14)
+Session Started: 2025-10-14 09:00:22
+================================================================================
+Command-line options: {'source_dir': 'testing/src1/', 'destination_dir': 'testing/target_test/', 'move': False, 'copy': True, 'extense': 'jpg', 'verbose': True, 'exifOnly': 'yes', 'dryrun': True, 'duplicate_handling': 'skip', 'no_comprehensive_check': False, 'redirect_dir': 'Duplicates', 'duplicate_keyword': 'duplicate', 'examples': False}
+Processing files with extensions: .jpg
+Building comprehensive hash cache of target directory...
+Hash cache built: 5 files indexed, 5 unique hashes
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2022_10_23
+  DUPLICATE CONFLICT: 20221023_171427392_iOS.jpg matches existing file /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2022_10_23/20221023_171427392_iOS.jpg (reason: identical content)
+  DUPLICATE CONFLICT: 20221023_171427392_iOS.jpg -> /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2022_10_23/20221023_171427392_iOS.jpg (reason: filename AND content match)
+  MASTER SELECTION: Chose 20221023_171427392_iOS.jpg as master (incoming)
+    Criteria: has_dup_keywords=False, name_length=26, date=2022-10-23 13:14:27
+    Non-masters (1): ['20221023_171427392_iOS.jpg']
+  MASTER PROMOTION: Incoming file 20221023_171427392_iOS.jpg is the better master
+    DEMOTION: 20221023_171427392_iOS.jpg will be moved to duplicate location
+    WOULD DEMOTE: 20221023_171427392_iOS.jpg [DRY RUN]
+  20221023_171427392_iOS.jpg                  2022-10-23 13:14:27 copied /mnt/c/Users/br8kw/Github/orgphoto/testing/target_test/2022_10_23 [PROMOTED TO MASTER] [DRY RUN]
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2023_06_20
+  20230620_120117000_iOS.jpg        no EXIF     skipped
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2023_10_28
+  20231028_185941501_iOS.jpg        no EXIF     skipped
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/2024_01_13
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/src2
+Source Folder: /mnt/c/Users/br8kw/Github/orgphoto/testing/src1/src2/src3
+Total files matched: 3, processed: 1
+================================================================================
+Session Ended: 2025-10-14 09:00:41
+================================================================================
+

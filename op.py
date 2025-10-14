@@ -98,8 +98,17 @@ config.quiet = True
 # v1.5.0 - Added version display in help output header and when run without arguments
 #          Enhanced user experience with version visibility throughout interface
 # v1.5.1 - Fixed version output appearing multiple times
-__version__ = "1.5.1"
-myversion = f"v. {__version__} 2025-10-04"
+# v1.6.0 - Added detailed conflict logging showing duplicate files and conflict reasons
+#          Logs conflicting file paths and whether conflict is filename, content, or both
+# v2.0.0 - MAJOR UPDATE: Intelligent master file selection system
+#          Automatically determines best master file based on: shortest filename, oldest date, no duplicate keywords
+#          Demotes existing files when incoming file is better master candidate
+#          Protects master files from being overwritten by inferior duplicates
+#          Comprehensive logging of master selection criteria and demotion actions
+# v2.0.1 - Enhanced session header in log file with clear version information and formatting
+#          Improved log readability with structured headers and session separators
+__version__ = "2.0.1"
+myversion = f"v. {__version__} 2025-10-14"
 
 
 def calculate_file_hash(file_path: Path, algorithm: str = 'sha256') -> str:
@@ -562,6 +571,129 @@ def normalize_extensions(ext_string: str):
     ]
 
 
+def has_duplicate_keywords(filename: str) -> bool:
+    """
+    Check if filename contains keywords suggesting it's a duplicate from another program.
+
+    Args:
+        filename (str): Filename to check
+
+    Returns:
+        bool: True if duplicate keywords found, False otherwise
+    """
+    # Split filename into name and extension
+    from pathlib import Path
+    name_part = Path(filename).stem.lower()
+
+    # Word-based duplicate keywords (match anywhere in filename)
+    word_keywords = [
+        'copy', 'duplicate', 'version', 'backup', 'alt', 'alternative',
+        'copy of', 'copie', 'kopie', 'copia',  # International variations
+    ]
+
+    # Check for word-based keywords
+    for keyword in word_keywords:
+        if keyword in name_part:
+            return True
+
+    # Numbered duplicates - only match at the END of the filename (more specific)
+    # This avoids false positives from timestamps like "20221023_171427392"
+    import re
+
+    # Match patterns like: "photo (1)", "photo_1", "photo-1", "photo copy 1"
+    # These patterns specifically check for numbers at the end
+    numbered_patterns = [
+        r'\(\d+\)$',      # (1), (2), (3) at end
+        r'_copy_?\d+$',   # _copy1, _copy_1 at end
+        r'_duplicate_?\d+$',  # _duplicate1, _duplicate_1 at end
+        r' \d+$',         # Space followed by number at end (like "photo 2")
+    ]
+
+    for pattern in numbered_patterns:
+        if re.search(pattern, name_part):
+            return True
+
+    return False
+
+
+def calculate_master_score(file_path: Path, creation_date: datetime.datetime, logger) -> tuple:
+    """
+    Calculate a master file score based on multiple criteria.
+    Lower score = better master candidate.
+
+    Criteria (in priority order):
+    1. No duplicate keywords (highest priority)
+    2. Shortest filename
+    3. Oldest creation/modification date
+
+    Args:
+        file_path (Path): Path to the file
+        creation_date (datetime.datetime): Creation date of the file
+        logger: Logger instance
+
+    Returns:
+        tuple: (has_dup_keywords, filename_length, date_timestamp)
+               Lower values = better master candidate
+    """
+    filename = file_path.name
+    has_dup_keywords = has_duplicate_keywords(filename)
+    filename_length = len(filename)
+    date_timestamp = creation_date.timestamp()
+
+    return (has_dup_keywords, filename_length, date_timestamp)
+
+
+def select_master_file(incoming_file: Path, incoming_date: datetime.datetime,
+                       existing_files: list, logger) -> tuple:
+    """
+    Determine which file should be the master among duplicates.
+
+    Args:
+        incoming_file (Path): Path to incoming file
+        incoming_date (datetime.datetime): Creation date of incoming file
+        existing_files (list): List of (Path, datetime) tuples for existing files
+        logger: Logger instance
+
+    Returns:
+        tuple: (master_path, non_master_files)
+               master_path: Path to the file that should be master
+               non_master_files: List of paths that should be treated as duplicates
+    """
+    # Calculate scores for all files
+    incoming_score = calculate_master_score(incoming_file, incoming_date, logger)
+
+    candidates = [(incoming_file, incoming_date, incoming_score, "incoming")]
+
+    for existing_path in existing_files:
+        # Get the creation date for existing file
+        try:
+            existing_date = get_created_date(existing_path, logger)
+            if not existing_date:
+                existing_date = datetime.datetime.fromtimestamp(existing_path.stat().st_mtime)
+        except Exception as e:
+            logger.warning(f"Failed to get date for existing file {existing_path}: {e}")
+            existing_date = datetime.datetime.now()
+
+        existing_score = calculate_master_score(existing_path, existing_date, logger)
+        candidates.append((existing_path, existing_date, existing_score, "existing"))
+
+    # Sort by score (lower is better)
+    candidates.sort(key=lambda x: x[2])
+
+    # The first candidate is the master
+    master_path, master_date, master_score, master_origin = candidates[0]
+    non_masters = [c[0] for c in candidates[1:]]
+
+    # Log the selection decision
+    logger.info(f"  MASTER SELECTION: Chose {master_path.name} as master ({master_origin})")
+    logger.info(f"    Criteria: has_dup_keywords={master_score[0]}, name_length={master_score[1]}, date={master_date.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    if len(candidates) > 1:
+        logger.info(f"    Non-masters ({len(non_masters)}): {[p.name for p in non_masters]}")
+
+    return (master_path, non_masters, master_origin)
+
+
 def handle_file_operation(
     source_path: Path, dest_path: Path, action: str, duplicate_handling: str,
     hash_cache, redirect_path: Path, duplicate_keyword: str,
@@ -589,75 +721,170 @@ def handle_file_operation(
     # Determine if we have any kind of duplicate
     has_filename_duplicate = filename_exists
     has_content_duplicate = len(content_duplicates) > 0
-    
+
+    # Log conflict information if duplicates detected
+    if has_filename_duplicate or has_content_duplicate:
+        conflict_reasons = []
+        if has_filename_duplicate:
+            conflict_reasons.append(f"filename conflict at {dest_path}")
+        if has_content_duplicate:
+            conflict_reasons.append(f"content duplicate (SHA-256 match)")
+            for dup_path in content_duplicates:
+                logger.info(f"  DUPLICATE CONFLICT: {filename} matches existing file {dup_path} (reason: identical content)")
+
+        # Log combined reason if both types of conflict
+        if has_filename_duplicate and has_content_duplicate:
+            logger.info(f"  DUPLICATE CONFLICT: {filename} -> {dest_path} (reason: filename AND content match)")
+        elif has_filename_duplicate:
+            logger.info(f"  DUPLICATE CONFLICT: {filename} -> {dest_path} (reason: filename exists)")
+
     # Handle different duplicate scenarios based on mode
     final_dest_path = dest_path
-    
+    files_to_demote = []  # Existing files that need to be moved to duplicate location
+
     if has_filename_duplicate or has_content_duplicate:
-        if duplicate_handling == "skip":
-            duplicate_action = " [SKIPPED - duplicate]"
-            logger.info(f"  {filename}  {comment:>{space}}    skipped - duplicate detected")
-            return 0
-            
-        elif duplicate_handling == "overwrite":
-            duplicate_action = " [OVERWRITTEN]"
-            # Proceed with original dest_path - will overwrite
-            
-        elif duplicate_handling == "rename":
-            final_dest_path = generate_unique_duplicate_filename(dest_path.parent, filename, duplicate_keyword)
-            duplicate_action = f" [RENAMED -> {final_dest_path.name}]"
-            
-        elif duplicate_handling == "content":
-            if has_content_duplicate:
-                # Identical content - skip
-                duplicate_action = " [SKIPPED - identical content]"
-                logger.info(f"  {filename}  {comment:>{space}}    skipped - identical content")
+        # Collect all conflicting files for master selection
+        all_conflicting_files = set()
+        if has_filename_duplicate and dest_path.exists():
+            all_conflicting_files.add(dest_path)
+        if has_content_duplicate:
+            all_conflicting_files.update(content_duplicates)
+
+        # Perform master selection to determine which file should be the master
+        master_path, non_masters, master_origin = select_master_file(
+            source_path, creation_date, list(all_conflicting_files), logger
+        )
+
+        # Check if incoming file is the master
+        incoming_is_master = (master_origin == "incoming")
+
+        if incoming_is_master:
+            # Incoming file is the better master - need to demote existing file(s)
+            logger.info(f"  MASTER PROMOTION: Incoming file {filename} is the better master")
+
+            # Demote all non-master files (existing files in target)
+            for existing_file in non_masters:
+                if existing_file.exists():
+                    files_to_demote.append(existing_file)
+                    logger.info(f"    DEMOTION: {existing_file.name} will be moved to duplicate location")
+
+            # The incoming file will go to the intended destination
+            final_dest_path = dest_path
+            duplicate_action = " [PROMOTED TO MASTER]"
+
+        else:
+            # An existing file is the master - handle incoming file per duplicate mode
+            logger.info(f"  MASTER RETAINED: Existing file {master_path.name} remains as master")
+
+            # Now handle the incoming file according to duplicate_handling mode
+            if duplicate_handling == "skip":
+                duplicate_action = " [SKIPPED - not master]"
+                logger.info(f"  {filename}  {comment:>{space}}    skipped - existing file is better master")
                 return 0
-            elif has_filename_duplicate:
-                # Same filename, different content - rename
+
+            elif duplicate_handling == "overwrite":
+                # Don't overwrite the master - instead rename the incoming file
                 final_dest_path = generate_unique_duplicate_filename(dest_path.parent, filename, duplicate_keyword)
-                duplicate_action = f" [RENAMED - different content -> {final_dest_path.name}]"
-                
-        elif duplicate_handling == "interactive":
-            choice = prompt_user_for_duplicate_action(
-                source_path, dest_path, has_content_duplicate, content_duplicates, logger
-            )
-            if choice == "skip":
-                duplicate_action = " [SKIPPED - user choice]"
-                logger.info(f"  {filename}  {comment:>{space}}    skipped - user choice")
-                return 0
-            elif choice == "overwrite":
-                duplicate_action = " [OVERWRITTEN - user choice]"
-            elif choice == "rename":
+                duplicate_action = f" [RENAMED - master protected -> {final_dest_path.name}]"
+                logger.info(f"    Overwrite blocked - master file protected")
+
+            elif duplicate_handling == "rename":
                 final_dest_path = generate_unique_duplicate_filename(dest_path.parent, filename, duplicate_keyword)
-                duplicate_action = f" [RENAMED - user choice -> {final_dest_path.name}]"
-            elif choice == "redirect":
+                duplicate_action = f" [RENAMED - not master -> {final_dest_path.name}]"
+
+            elif duplicate_handling == "content":
+                if has_content_duplicate:
+                    # Identical content - skip
+                    duplicate_action = " [SKIPPED - identical content]"
+                    logger.info(f"  {filename}  {comment:>{space}}    skipped - identical content to master")
+                    return 0
+                else:
+                    # Different content - rename
+                    final_dest_path = generate_unique_duplicate_filename(dest_path.parent, filename, duplicate_keyword)
+                    duplicate_action = f" [RENAMED - different from master -> {final_dest_path.name}]"
+
+            elif duplicate_handling == "interactive":
+                choice = prompt_user_for_duplicate_action(
+                    source_path, dest_path, has_content_duplicate, content_duplicates, logger
+                )
+                if choice == "skip":
+                    duplicate_action = " [SKIPPED - user choice]"
+                    logger.info(f"  {filename}  {comment:>{space}}    skipped - user choice")
+                    return 0
+                elif choice == "overwrite":
+                    # Even in interactive mode, protect the master
+                    final_dest_path = generate_unique_duplicate_filename(dest_path.parent, filename, duplicate_keyword)
+                    duplicate_action = f" [RENAMED - master protected -> {final_dest_path.name}]"
+                    logger.info(f"    Overwrite blocked - master file protected")
+                elif choice == "rename":
+                    final_dest_path = generate_unique_duplicate_filename(dest_path.parent, filename, duplicate_keyword)
+                    duplicate_action = f" [RENAMED - user choice -> {final_dest_path.name}]"
+                elif choice == "redirect":
+                    if not redirect_path:
+                        redirect_path = setup_redirect_directory(dest_path.parent.parent, "Duplicates", logger)
+                    final_dest_path = redirect_path / filename
+                    if final_dest_path.exists():
+                        final_dest_path = generate_unique_duplicate_filename(redirect_path, filename, duplicate_keyword)
+                    duplicate_action = f" [REDIRECTED - user choice -> {final_dest_path}]"
+
+            elif duplicate_handling == "redirect":
                 if not redirect_path:
                     redirect_path = setup_redirect_directory(dest_path.parent.parent, "Duplicates", logger)
                 final_dest_path = redirect_path / filename
                 if final_dest_path.exists():
                     final_dest_path = generate_unique_duplicate_filename(redirect_path, filename, duplicate_keyword)
-                duplicate_action = f" [REDIRECTED - user choice -> {final_dest_path}]"
-                
-        elif duplicate_handling == "redirect":
-            if not redirect_path:
-                redirect_path = setup_redirect_directory(dest_path.parent.parent, "Duplicates", logger)
-            final_dest_path = redirect_path / filename
-            if final_dest_path.exists():
-                final_dest_path = generate_unique_duplicate_filename(redirect_path, filename, duplicate_keyword)
-            duplicate_action = f" [REDIRECTED -> {final_dest_path}]"
+                duplicate_action = f" [REDIRECTED - not master -> {final_dest_path}]"
 
     # Perform the actual file operation
     try:
+        # First, demote any existing files if incoming file is promoted to master
+        if files_to_demote and not dryrun:
+            for demoted_file in files_to_demote:
+                # Determine where to move the demoted file
+                if duplicate_handling == "redirect" or duplicate_handling == "interactive":
+                    # Move to redirect directory
+                    if not redirect_path:
+                        redirect_path = setup_redirect_directory(demoted_file.parent.parent, "Duplicates", logger)
+
+                    demoted_dest = redirect_path / demoted_file.name
+                    if demoted_dest.exists():
+                        demoted_dest = generate_unique_duplicate_filename(redirect_path, demoted_file.name, duplicate_keyword)
+                else:
+                    # Rename in place
+                    demoted_dest = generate_duplicate_filename(demoted_file, duplicate_keyword)
+                    if demoted_dest.exists():
+                        demoted_dest = generate_unique_filename(demoted_dest)
+
+                try:
+                    # Move the demoted file
+                    shutil.move(str(demoted_file), str(demoted_dest))
+                    logger.info(f"    DEMOTED: {demoted_file.name} -> {demoted_dest}")
+
+                    # Update hash cache - remove old location, add new location
+                    if hash_cache:
+                        hash_cache.invalidate_file(demoted_file)
+                        demoted_hash = calculate_file_hash(demoted_dest)
+                        if demoted_hash:
+                            hash_cache.add_file(demoted_dest, demoted_hash)
+
+                except Exception as e:
+                    logger.error(f"Failed to demote {demoted_file} to {demoted_dest}: {e}")
+                    # Continue with other demotions even if one fails
+
+        # Log demotion actions even in dry run mode
+        if files_to_demote and dryrun:
+            for demoted_file in files_to_demote:
+                logger.info(f"    WOULD DEMOTE: {demoted_file.name} [DRY RUN]")
+
         if not dryrun:
             # Ensure destination directory exists
             final_dest_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             if action == "move":
                 shutil.move(str(source_path), str(final_dest_path))
             else:
                 shutil.copy2(str(source_path), str(final_dest_path))
-            
+
             # Update hash cache with new file (if enabled)
             if hash_cache and source_hash:
                 hash_cache.add_file(final_dest_path, source_hash)
@@ -1151,10 +1378,14 @@ def main(args=None):
     # Set up logging to a file in the destination directory
     logger = set_up_logging(destination_dir, parsed_args.verbose)
 
-    # Log script start with MariaDB TIMESTAMP format (YYYY-MM-DD HH:MM:SS)
+    # Log script start with comprehensive version information
     start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"{10 * '-'}{myversion}++ Started: {start_time}")
-    logger.debug("options: %s", vars(parsed_args))
+    logger.info("=" * 80)
+    logger.info(f"orgphoto - Photo Organization Tool")
+    logger.info(f"Version: {__version__} (Release Date: 2025-10-14)")
+    logger.info(f"Session Started: {start_time}")
+    logger.info("=" * 80)
+    logger.debug("Command-line options: %s", vars(parsed_args))
 
     # Validate source and destination directories
     validate_args(source_dir, destination_dir, logger)
@@ -1195,9 +1426,12 @@ def main(args=None):
         hash_cache=hash_cache,
     )
 
-    # Log script end with MariaDB TIMESTAMP format
+    # Log script end
     end_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"{10 * '_'}** Ended: {end_time}")
+    logger.info("=" * 80)
+    logger.info(f"Session Ended: {end_time}")
+    logger.info("=" * 80)
+    logger.info("")  # Add blank line between sessions
 
     # Ensure all log messages are written
     logging.shutdown()

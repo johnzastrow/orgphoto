@@ -1,5 +1,127 @@
 # Notes
 
+## October 14, 2025
+
+● Summary
+
+  Implemented intelligent master file selection system and enhanced log formatting:
+
+  Version 2.0.1 - Enhanced Log Formatting:
+
+  1. Professional Session Headers:
+  - Enhanced log file headers with structured formatting
+  - Clear version information in each session
+  - Session start/end timestamps with visual separators
+  - Improved readability with 80-character separator lines
+  - Blank lines between sessions for better organization
+
+  Log Format Example:
+  ```
+  ================================================================================
+  orgphoto - Photo Organization Tool
+  Version: 2.0.1 (Release Date: 2025-10-14)
+  Session Started: 2025-10-14 09:00:22
+  ================================================================================
+  ```
+
+  Version 2.0.0 - Intelligent Master File Selection (MAJOR UPDATE):
+
+  1. Master File Selection Algorithm:
+  - Priority 1: No duplicate keywords (highest priority)
+    * Detects: copy, duplicate, version, backup, alt, alternative
+    * International: copie, kopie, copia
+    * Numbered patterns: (1), (2), _copy_1, _duplicate_001
+  - Priority 2: Shortest filename (simpler names preferred)
+  - Priority 3: Oldest creation/modification date (originals first)
+
+  2. Smart Duplicate Keyword Detection:
+  - Word-based keywords: copy, duplicate, version, backup, etc.
+  - Numbered duplicates at end of filename only (avoids timestamp false positives)
+  - Regular expressions for pattern matching: \(\d+\)$, _copy_?\d+$, etc.
+  - International variations supported
+
+  3. Automatic File Demotion:
+  - When incoming file is better master, existing files are demoted
+  - Demoted files moved according to duplicate handling mode
+  - Redirect mode: Files moved to Duplicates/ directory
+  - Rename mode: Files renamed in place with duplicate keyword
+  - Hash cache updated automatically during demotion
+
+  4. Master File Protection:
+  - Master files protected from being overwritten
+  - Even in "overwrite" mode, masters are preserved
+  - Inferior duplicates renamed or redirected instead
+  - Prevents accidental data loss of original files
+
+  5. Comprehensive Logging:
+  - Master selection decisions logged with criteria
+  - Demotion actions tracked with source and destination
+  - Conflict reasons detailed (filename, content, or both)
+  - All actions logged to events.log for audit trail
+
+  Usage Examples:
+
+  # Master selection with default skip mode
+  python op.py -c -D skip -j jpg source/ target/
+  # Incoming inferior duplicates skipped, existing master protected
+
+  # Master selection with redirect mode
+  python op.py -c -D redirect -R Duplicates -j jpg source/ target/
+  # Incoming becomes master, existing demoted to Duplicates/
+
+  # Master selection with rename mode
+  python op.py -c -D rename -K old -j jpg source/ target/
+  # Best file selected as master, others renamed with "old" keyword
+
+  How Master Selection Works:
+
+  1. Duplicate Detection: SHA-256 hash or filename conflict detected
+  2. Candidate Evaluation: All conflicting files (incoming + existing) scored
+  3. Master Selection: Lowest score wins (no keywords=0, has keywords=1, then by length, then by date)
+  4. Action Determination:
+     - If incoming is master: Demote existing files, place incoming
+     - If existing is master: Protect master, handle incoming per mode
+  5. Execution: Files moved/renamed, hash cache updated, actions logged
+
+  Log Output Example:
+
+  ```
+  DUPLICATE CONFLICT: photo.jpg matches existing file target/2023_01_15/photo_copy.jpg (reason: identical content)
+  MASTER SELECTION: Chose photo.jpg as master (incoming)
+    Criteria: has_dup_keywords=False, name_length=9, date=2023-01-15 10:30:00
+    Non-masters (1): ['photo_copy.jpg']
+  MASTER PROMOTION: Incoming file photo.jpg is the better master
+    DEMOTION: photo_copy.jpg will be moved to duplicate location
+    DEMOTED: photo_copy.jpg -> Duplicates/photo_copy_duplicate.jpg
+  photo.jpg  2023-01-15 10:30:00 copied target/2023_01_15 [PROMOTED TO MASTER]
+  ```
+
+  Key Features Delivered:
+
+  ✅ Three-tier master selection algorithm (keywords > length > date)
+  ✅ Smart duplicate keyword detection with international support
+  ✅ Automatic file demotion when better master arrives
+  ✅ Master file protection from inferior duplicates
+  ✅ Comprehensive logging of all decisions and actions
+  ✅ Integration with all duplicate handling modes
+  ✅ Hash cache management during demotions
+  ✅ Professional log formatting with session headers
+  ✅ Full documentation in README.md and CLAUDE.md
+
+  Technical Implementation:
+
+  - `has_duplicate_keywords()`: Detects duplicate markers in filenames
+  - `calculate_master_score()`: Scores files based on three criteria
+  - `select_master_file()`: Determines master among all candidates
+  - Enhanced `handle_file_operation()`: Implements master-aware processing
+  - Demotion logic: Moves files and updates hash cache atomically
+  - Protected operations: Masters cannot be overwritten accidentally
+
+  The intelligent master file selection system transforms orgphoto from a simple duplicate detector
+  into an intelligent file organizer that automatically identifies and preserves original files
+  while properly categorizing copies and duplicates. This is a major architectural enhancement
+  that fundamentally improves how the application handles complex duplicate scenarios.
+
 ## August 28, 2025
 
 ● Summary
