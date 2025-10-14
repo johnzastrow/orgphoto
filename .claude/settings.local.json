@@ -16,7 +16,14 @@
       "Bash(command -v:*)",
       "Read(//home/jcz/.local/bin/**)",
       "Read(//home/jcz/**)",
-      "Bash(~/.local/bin/uv run:*)"
+      "Bash(~/.local/bin/uv run:*)",
+      "Bash(mkdir:*)",
+      "Bash(sha256sum:*)",
+      "Bash(source:*)",
+      "Bash(timeout 10 python op.py -c -D skip -j jpg testing/test_duplicates_source/ testing/test_duplicates_target/)",
+      "Bash(.venv/bin/python:*)",
+      "Bash(rm -rf .venv:*)",
+      "Bash(rm -rf .venv && uv sync:*)"
     ],
     "deny": []
   }

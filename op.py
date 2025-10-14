@@ -107,7 +107,9 @@ config.quiet = True
 #          Comprehensive logging of master selection criteria and demotion actions
 # v2.0.1 - Enhanced session header in log file with clear version information and formatting
 #          Improved log readability with structured headers and session separators
-__version__ = "2.0.1"
+# v2.0.2 - Enhanced logging to include full source path for better traceability
+#          Log entries now show complete file paths instead of just filenames
+__version__ = "2.0.2"
 myversion = f"v. {__version__} 2025-10-14"
 
 
@@ -779,7 +781,7 @@ def handle_file_operation(
             # Now handle the incoming file according to duplicate_handling mode
             if duplicate_handling == "skip":
                 duplicate_action = " [SKIPPED - not master]"
-                logger.info(f"  {filename}  {comment:>{space}}    skipped - existing file is better master")
+                logger.info(f"  {source_path}  {comment:>{space}}    skipped - existing file is better master")
                 return 0
 
             elif duplicate_handling == "overwrite":
@@ -796,7 +798,7 @@ def handle_file_operation(
                 if has_content_duplicate:
                     # Identical content - skip
                     duplicate_action = " [SKIPPED - identical content]"
-                    logger.info(f"  {filename}  {comment:>{space}}    skipped - identical content to master")
+                    logger.info(f"  {source_path}  {comment:>{space}}    skipped - identical content to master")
                     return 0
                 else:
                     # Different content - rename
@@ -809,7 +811,7 @@ def handle_file_operation(
                 )
                 if choice == "skip":
                     duplicate_action = " [SKIPPED - user choice]"
-                    logger.info(f"  {filename}  {comment:>{space}}    skipped - user choice")
+                    logger.info(f"  {source_path}  {comment:>{space}}    skipped - user choice")
                     return 0
                 elif choice == "overwrite":
                     # Even in interactive mode, protect the master
@@ -892,9 +894,9 @@ def handle_file_operation(
         # Format timestamp in MariaDB format (YYYY-MM-DD HH:MM:SS)
         timestamp = creation_date.strftime("%Y-%m-%d %H:%M:%S")
 
-        # Log the operation
+        # Log the operation with full source path for traceability
         logger.info(
-            f"  {filename}  {comment:>{space}}  {timestamp} {flag_action:>3} {final_dest_path.parent}{duplicate_action}"
+            f"  {source_path}  {comment:>{space}}  {timestamp} {flag_action:>3} {final_dest_path.parent}{duplicate_action}"
             + (" [DRY RUN]" if dryrun else "")
         )
         
@@ -1094,7 +1096,7 @@ def moveFile(
     # exifOnly logic: skip, only process, or fallback for files without EXIF
     if not comment.isspace() and exif_only == "yes":
         # Skip files without EXIF if exifOnly is "yes"
-        logger.info(f"  {filename}  {comment:>{space}}    skipped")
+        logger.info(f"  {fullpath}  {comment:>{space}}    skipped")
         return 0
     else:
         # Determine action label for logging
@@ -1127,7 +1129,7 @@ def moveFile(
             )
         elif exif_only == "fs" and comment.isspace():
             # Skip files with EXIF when exifOnly is "fs" (only process files without EXIF)
-            logger.info(f"  {filename}  {comment:>{space}}    skipped")
+            logger.info(f"  {fullpath}  {comment:>{space}}    skipped")
             return 0
     return 0
 
