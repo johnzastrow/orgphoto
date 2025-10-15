@@ -41,6 +41,9 @@ uv run op.py -c -D overwrite -v -j jpg source/ target/         # Overwrite mode
 # Install dependencies with uv
 uv sync
 
+# check the code after each round of development
+uv run ruff check --fix . && uv run ruff format . 
+
 # Install dependencies with pip
 pip install hachoir auto-py-to-exe
 ```

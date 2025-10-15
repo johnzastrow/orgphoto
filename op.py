@@ -113,70 +113,74 @@ __version__ = "2.0.2"
 myversion = f"v. {__version__} 2025-10-14"
 
 
-def calculate_file_hash(file_path: Path, algorithm: str = 'sha256') -> str:
+def calculate_file_hash(file_path: Path, algorithm: str = "sha256") -> str:
     """
     Calculate hash of a file for content comparison.
-    
+
     Args:
         file_path (Path): Path to the file to hash
         algorithm (str): Hash algorithm to use (default: sha256)
-    
+
     Returns:
         str: Hexadecimal hash string, or empty string if error
     """
     try:
         hash_obj = hashlib.new(algorithm)
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             # Read file in chunks to handle large files efficiently
             for chunk in iter(lambda: f.read(8192), b""):
                 hash_obj.update(chunk)
         return hash_obj.hexdigest()
     except Exception as e:
-        logging.getLogger(__name__).error(f"Failed to calculate hash for {file_path}: {e}")
+        logging.getLogger(__name__).error(
+            f"Failed to calculate hash for {file_path}: {e}"
+        )
         return ""
 
 
 def generate_unique_filename(dest_file_path: Path) -> Path:
     """
     Generate a unique filename by adding a numeric suffix.
-    
+
     Args:
         dest_file_path (Path): Original destination file path
-    
+
     Returns:
         Path: Unique file path with suffix if needed
     """
     if not dest_file_path.exists():
         return dest_file_path
-    
+
     base_name = dest_file_path.stem
     suffix = dest_file_path.suffix
     parent = dest_file_path.parent
     counter = 1
-    
+
     while True:
         new_name = f"{base_name}_{counter:03d}{suffix}"
         new_path = parent / new_name
         if not new_path.exists():
             return new_path
         counter += 1
-        
+
         # Safety limit to prevent infinite loop
         if counter > 9999:
             raise ValueError(f"Too many duplicates for {dest_file_path}")
 
 
-def generate_duplicate_filename(original_path: Path, duplicate_keyword: str = "duplicate") -> Path:
+def generate_duplicate_filename(
+    original_path: Path, duplicate_keyword: str = "duplicate"
+) -> Path:
     """
     Generate a duplicate filename by inserting the duplicate keyword.
-    
+
     Args:
         original_path (Path): Original file path
         duplicate_keyword (str): Keyword to insert (default: "duplicate")
-    
+
     Returns:
         Path: New path with duplicate keyword inserted
-        
+
     Example:
         photo.jpg -> photo_duplicate.jpg
         vacation_2023.png -> vacation_2023_duplicate.png
@@ -184,23 +188,25 @@ def generate_duplicate_filename(original_path: Path, duplicate_keyword: str = "d
     base_name = original_path.stem
     suffix = original_path.suffix
     parent = original_path.parent
-    
+
     duplicate_name = f"{base_name}_{duplicate_keyword}{suffix}"
     return parent / duplicate_name
 
 
-def generate_unique_duplicate_filename(dest_dir: Path, filename: str, duplicate_keyword: str = "duplicate") -> Path:
+def generate_unique_duplicate_filename(
+    dest_dir: Path, filename: str, duplicate_keyword: str = "duplicate"
+) -> Path:
     """
     Generate a unique duplicate filename with incrementing numbers if needed.
-    
+
     Args:
         dest_dir (Path): Destination directory
-        filename (str): Original filename  
+        filename (str): Original filename
         duplicate_keyword (str): Keyword to insert
-    
+
     Returns:
         Path: Unique duplicate filename path
-        
+
     Examples:
         photo.jpg -> photo_duplicate.jpg (if unique)
         photo.jpg -> photo_duplicate_001.jpg (if photo_duplicate.jpg exists)
@@ -208,22 +214,22 @@ def generate_unique_duplicate_filename(dest_dir: Path, filename: str, duplicate_
     """
     original_path = dest_dir / filename
     base_duplicate = generate_duplicate_filename(original_path, duplicate_keyword)
-    
+
     if not base_duplicate.exists():
         return base_duplicate
-    
+
     # If duplicate filename exists, add incrementing numbers
     base_name = original_path.stem
     suffix = original_path.suffix
     counter = 1
-    
+
     while True:
         new_name = f"{base_name}_{duplicate_keyword}_{counter:03d}{suffix}"
         new_path = dest_dir / new_name
         if not new_path.exists():
             return new_path
         counter += 1
-        
+
         # Safety limit to prevent infinite loop
         if counter > 9999:
             raise ValueError(f"Too many duplicates for {original_path}")
@@ -232,27 +238,29 @@ def generate_unique_duplicate_filename(dest_dir: Path, filename: str, duplicate_
 def parse_duplicate_handling(duplicate_handling_str: str) -> dict:
     """
     Parse duplicate handling string into a dictionary of enabled modes.
-    
+
     Args:
         duplicate_handling_str (str): Comma-separated duplicate handling modes
-        
+
     Returns:
         dict: Dictionary with modes as keys and True as values
-        
+
     Example:
         "redirect,rename" -> {"redirect": True, "rename": True}
         "skip" -> {"skip": True}
     """
     valid_modes = {"skip", "overwrite", "rename", "content", "interactive", "redirect"}
-    
+
     # Split by comma and clean up
     modes = [mode.strip().lower() for mode in duplicate_handling_str.split(",")]
-    
+
     # Validate modes
     for mode in modes:
         if mode not in valid_modes:
-            raise ValueError(f"Invalid duplicate handling mode: '{mode}'. Valid modes: {', '.join(valid_modes)}")
-    
+            raise ValueError(
+                f"Invalid duplicate handling mode: '{mode}'. Valid modes: {', '.join(valid_modes)}"
+            )
+
     # Check for conflicting modes
     conflicts = [
         ("skip", "overwrite"),
@@ -261,24 +269,26 @@ def parse_duplicate_handling(duplicate_handling_str: str) -> dict:
         ("overwrite", "redirect"),
         ("overwrite", "rename"),
     ]
-    
+
     enabled_modes = set(modes)
     for mode1, mode2 in conflicts:
         if mode1 in enabled_modes and mode2 in enabled_modes:
-            raise ValueError(f"Conflicting duplicate handling modes: '{mode1}' and '{mode2}' cannot be used together")
-    
+            raise ValueError(
+                f"Conflicting duplicate handling modes: '{mode1}' and '{mode2}' cannot be used together"
+            )
+
     return {mode: True for mode in modes}
 
 
 def setup_redirect_directory(target_dir: Path, redirect_dir_name: str, logger) -> Path:
     """
     Set up the redirect directory for duplicate files.
-    
+
     Args:
         target_dir (Path): Main target directory
         redirect_dir_name (str): Name or path of redirect directory
         logger: Logger instance
-    
+
     Returns:
         Path: Full path to redirect directory
     """
@@ -287,7 +297,7 @@ def setup_redirect_directory(target_dir: Path, redirect_dir_name: str, logger) -
         redirect_path = Path(redirect_dir_name)
     else:
         redirect_path = target_dir / redirect_dir_name
-    
+
     # Create redirect directory if it doesn't exist
     try:
         redirect_path.mkdir(parents=True, exist_ok=True)
@@ -303,7 +313,7 @@ class TargetHashCache:
     Cache for storing and managing SHA256 hashes of files in the target directory.
     Provides comprehensive duplicate detection across the entire target tree.
     """
-    
+
     def __init__(self, target_dir: Path, logger):
         self.target_dir = target_dir
         self.logger = logger
@@ -312,94 +322,98 @@ class TargetHashCache:
         # Dictionary mapping file path -> (hash, mtime) for cache invalidation
         self.file_to_hash_mtime = {}
         self._build_cache()
-    
+
     def _build_cache(self):
         """Build the initial hash cache by scanning all existing files in target directory."""
         if not self.target_dir.exists():
             return
-            
+
         self.logger.info("Building comprehensive hash cache of target directory...")
         cache_count = 0
-        
+
         # Recursively walk through target directory
-        for file_path in self.target_dir.rglob('*'):
+        for file_path in self.target_dir.rglob("*"):
             if file_path.is_file():
                 try:
                     file_hash = calculate_file_hash(file_path)
                     if file_hash:
                         file_mtime = file_path.stat().st_mtime
-                        
+
                         # Add to hash->files mapping
                         if file_hash not in self.hash_to_files:
                             self.hash_to_files[file_hash] = []
                         self.hash_to_files[file_hash].append(file_path)
-                        
+
                         # Add to file->hash mapping with mtime for cache invalidation
                         self.file_to_hash_mtime[file_path] = (file_hash, file_mtime)
                         cache_count += 1
-                        
+
                         if cache_count % 100 == 0:
                             self.logger.debug(f"Cached {cache_count} file hashes...")
-                            
+
                 except Exception as e:
-                    self.logger.warning(f"Failed to hash existing file {file_path}: {e}")
-        
-        self.logger.info(f"Hash cache built: {cache_count} files indexed, {len(self.hash_to_files)} unique hashes")
-    
+                    self.logger.warning(
+                        f"Failed to hash existing file {file_path}: {e}"
+                    )
+
+        self.logger.info(
+            f"Hash cache built: {cache_count} files indexed, {len(self.hash_to_files)} unique hashes"
+        )
+
     def find_duplicates(self, source_file_path: Path, source_hash: str = None):
         """
         Find all files in target directory that have the same hash as source file.
-        
+
         Args:
             source_file_path (Path): Path to source file to check
             source_hash (str, optional): Pre-calculated hash of source file
-        
+
         Returns:
             list: List of Path objects that are duplicates of the source file
         """
         if source_hash is None:
             source_hash = calculate_file_hash(source_file_path)
-        
+
         if not source_hash:
             return []
-        
+
         return self.hash_to_files.get(source_hash, [])
-    
+
     def add_file(self, file_path: Path, file_hash: str = None):
         """
         Add a newly processed file to the cache.
-        
+
         Args:
             file_path (Path): Path to the file that was added
             file_hash (str, optional): Pre-calculated hash of the file
         """
         if file_hash is None:
             file_hash = calculate_file_hash(file_path)
-        
+
         if file_hash:
             file_mtime = file_path.stat().st_mtime
-            
+
             # Add to hash->files mapping
             if file_hash not in self.hash_to_files:
                 self.hash_to_files[file_hash] = []
             self.hash_to_files[file_hash].append(file_path)
-            
+
             # Add to file->hash mapping
             self.file_to_hash_mtime[file_path] = (file_hash, file_mtime)
-    
+
     def invalidate_file(self, file_path: Path):
         """
         Remove a file from the cache (e.g., if it was deleted or modified).
-        
+
         Args:
             file_path (Path): Path to the file to remove from cache
         """
         if file_path in self.file_to_hash_mtime:
             old_hash, _ = self.file_to_hash_mtime[file_path]
-            
+
             # Remove from file->hash mapping
             del self.file_to_hash_mtime[file_path]
-            
+
             # Remove from hash->files mapping
             if old_hash in self.hash_to_files:
                 try:
@@ -409,13 +423,15 @@ class TargetHashCache:
                         del self.hash_to_files[old_hash]
                 except ValueError:
                     pass  # File wasn't in the list
-    
+
     def get_stats(self):
         """Return cache statistics."""
         return {
-            'total_files': len(self.file_to_hash_mtime),
-            'unique_hashes': len(self.hash_to_files),
-            'duplicate_groups': sum(1 for files in self.hash_to_files.values() if len(files) > 1)
+            "total_files": len(self.file_to_hash_mtime),
+            "unique_hashes": len(self.hash_to_files),
+            "duplicate_groups": sum(
+                1 for files in self.hash_to_files.values() if len(files) > 1
+            ),
         }
 
 
@@ -585,12 +601,21 @@ def has_duplicate_keywords(filename: str) -> bool:
     """
     # Split filename into name and extension
     from pathlib import Path
+
     name_part = Path(filename).stem.lower()
 
     # Word-based duplicate keywords (match anywhere in filename)
     word_keywords = [
-        'copy', 'duplicate', 'version', 'backup', 'alt', 'alternative',
-        'copy of', 'copie', 'kopie', 'copia',  # International variations
+        "copy",
+        "duplicate",
+        "version",
+        "backup",
+        "alt",
+        "alternative",
+        "copy of",
+        "copie",
+        "kopie",
+        "copia",  # International variations
     ]
 
     # Check for word-based keywords
@@ -605,10 +630,10 @@ def has_duplicate_keywords(filename: str) -> bool:
     # Match patterns like: "photo (1)", "photo_1", "photo-1", "photo copy 1"
     # These patterns specifically check for numbers at the end
     numbered_patterns = [
-        r'\(\d+\)$',      # (1), (2), (3) at end
-        r'_copy_?\d+$',   # _copy1, _copy_1 at end
-        r'_duplicate_?\d+$',  # _duplicate1, _duplicate_1 at end
-        r' \d+$',         # Space followed by number at end (like "photo 2")
+        r"\(\d+\)$",  # (1), (2), (3) at end
+        r"_copy_?\d+$",  # _copy1, _copy_1 at end
+        r"_duplicate_?\d+$",  # _duplicate1, _duplicate_1 at end
+        r" \d+$",  # Space followed by number at end (like "photo 2")
     ]
 
     for pattern in numbered_patterns:
@@ -618,7 +643,9 @@ def has_duplicate_keywords(filename: str) -> bool:
     return False
 
 
-def calculate_master_score(file_path: Path, creation_date: datetime.datetime, logger) -> tuple:
+def calculate_master_score(
+    file_path: Path, creation_date: datetime.datetime, logger
+) -> tuple:
     """
     Calculate a master file score based on multiple criteria.
     Lower score = better master candidate.
@@ -645,8 +672,9 @@ def calculate_master_score(file_path: Path, creation_date: datetime.datetime, lo
     return (has_dup_keywords, filename_length, date_timestamp)
 
 
-def select_master_file(incoming_file: Path, incoming_date: datetime.datetime,
-                       existing_files: list, logger) -> tuple:
+def select_master_file(
+    incoming_file: Path, incoming_date: datetime.datetime, existing_files: list, logger
+) -> tuple:
     """
     Determine which file should be the master among duplicates.
 
@@ -671,7 +699,9 @@ def select_master_file(incoming_file: Path, incoming_date: datetime.datetime,
         try:
             existing_date = get_created_date(existing_path, logger)
             if not existing_date:
-                existing_date = datetime.datetime.fromtimestamp(existing_path.stat().st_mtime)
+                existing_date = datetime.datetime.fromtimestamp(
+                    existing_path.stat().st_mtime
+                )
         except Exception as e:
             logger.warning(f"Failed to get date for existing file {existing_path}: {e}")
             existing_date = datetime.datetime.now()
@@ -687,31 +717,48 @@ def select_master_file(incoming_file: Path, incoming_date: datetime.datetime,
     non_masters = [c[0] for c in candidates[1:]]
 
     # Log the selection decision
-    logger.info(f"  MASTER SELECTION: Chose {master_path.name} as master ({master_origin})")
-    logger.info(f"    Criteria: has_dup_keywords={master_score[0]}, name_length={master_score[1]}, date={master_date.strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(
+        f"  MASTER SELECTION: Chose {master_path.name} as master ({master_origin})"
+    )
+    logger.info(
+        f"    Criteria: has_dup_keywords={master_score[0]}, name_length={master_score[1]}, date={master_date.strftime('%Y-%m-%d %H:%M:%S')}"
+    )
 
     if len(candidates) > 1:
-        logger.info(f"    Non-masters ({len(non_masters)}): {[p.name for p in non_masters]}")
+        logger.info(
+            f"    Non-masters ({len(non_masters)}): {[p.name for p in non_masters]}"
+        )
 
     return (master_path, non_masters, master_origin)
 
 
 def handle_file_operation(
-    source_path: Path, dest_path: Path, action: str, duplicate_handling: str,
-    hash_cache, redirect_path: Path, duplicate_keyword: str,
-    dryrun: bool, logger, creation_date, comment: str, space: int, filename: str, flag_action: str
+    source_path: Path,
+    dest_path: Path,
+    action: str,
+    duplicate_handling: str,
+    hash_cache,
+    redirect_path: Path,
+    duplicate_keyword: str,
+    dryrun: bool,
+    logger,
+    creation_date,
+    comment: str,
+    space: int,
+    filename: str,
+    flag_action: str,
 ):
     """
     Handle file operation with comprehensive duplicate detection and various handling modes.
-    
+
     Returns:
         int: 1 if file was processed successfully, 0 otherwise
     """
     duplicate_action = ""
-    
+
     # Check for filename-based duplicates
     filename_exists = dest_path.exists()
-    
+
     # Check for content-based duplicates using hash cache (if enabled)
     content_duplicates = []
     source_hash = None
@@ -719,7 +766,7 @@ def handle_file_operation(
         source_hash = calculate_file_hash(source_path)
         if source_hash:
             content_duplicates = hash_cache.find_duplicates(source_path, source_hash)
-    
+
     # Determine if we have any kind of duplicate
     has_filename_duplicate = filename_exists
     has_content_duplicate = len(content_duplicates) > 0
@@ -732,13 +779,19 @@ def handle_file_operation(
         if has_content_duplicate:
             conflict_reasons.append(f"content duplicate (SHA-256 match)")
             for dup_path in content_duplicates:
-                logger.info(f"  DUPLICATE CONFLICT: {filename} matches existing file {dup_path} (reason: identical content)")
+                logger.info(
+                    f"  DUPLICATE CONFLICT: {filename} matches existing file {dup_path} (reason: identical content)"
+                )
 
         # Log combined reason if both types of conflict
         if has_filename_duplicate and has_content_duplicate:
-            logger.info(f"  DUPLICATE CONFLICT: {filename} -> {dest_path} (reason: filename AND content match)")
+            logger.info(
+                f"  DUPLICATE CONFLICT: {filename} -> {dest_path} (reason: filename AND content match)"
+            )
         elif has_filename_duplicate:
-            logger.info(f"  DUPLICATE CONFLICT: {filename} -> {dest_path} (reason: filename exists)")
+            logger.info(
+                f"  DUPLICATE CONFLICT: {filename} -> {dest_path} (reason: filename exists)"
+            )
 
     # Handle different duplicate scenarios based on mode
     final_dest_path = dest_path
@@ -758,17 +811,21 @@ def handle_file_operation(
         )
 
         # Check if incoming file is the master
-        incoming_is_master = (master_origin == "incoming")
+        incoming_is_master = master_origin == "incoming"
 
         if incoming_is_master:
             # Incoming file is the better master - need to demote existing file(s)
-            logger.info(f"  MASTER PROMOTION: Incoming file {filename} is the better master")
+            logger.info(
+                f"  MASTER PROMOTION: Incoming file {filename} is the better master"
+            )
 
             # Demote all non-master files (existing files in target)
             for existing_file in non_masters:
                 if existing_file.exists():
                     files_to_demote.append(existing_file)
-                    logger.info(f"    DEMOTION: {existing_file.name} will be moved to duplicate location")
+                    logger.info(
+                        f"    DEMOTION: {existing_file.name} will be moved to duplicate location"
+                    )
 
             # The incoming file will go to the intended destination
             final_dest_path = dest_path
@@ -776,65 +833,105 @@ def handle_file_operation(
 
         else:
             # An existing file is the master - handle incoming file per duplicate mode
-            logger.info(f"  MASTER RETAINED: Existing file {master_path.name} remains as master")
+            logger.info(
+                f"  MASTER RETAINED: Existing file {master_path.name} remains as master"
+            )
 
             # Now handle the incoming file according to duplicate_handling mode
             if duplicate_handling == "skip":
                 duplicate_action = " [SKIPPED - not master]"
-                logger.info(f"  {source_path}  {comment:>{space}}    skipped - existing file is better master")
+                logger.info(
+                    f"  {source_path}  {comment:>{space}}    skipped - existing file is better master"
+                )
                 return 0
 
             elif duplicate_handling == "overwrite":
                 # Don't overwrite the master - instead rename the incoming file
-                final_dest_path = generate_unique_duplicate_filename(dest_path.parent, filename, duplicate_keyword)
-                duplicate_action = f" [RENAMED - master protected -> {final_dest_path.name}]"
+                final_dest_path = generate_unique_duplicate_filename(
+                    dest_path.parent, filename, duplicate_keyword
+                )
+                duplicate_action = (
+                    f" [RENAMED - master protected -> {final_dest_path.name}]"
+                )
                 logger.info(f"    Overwrite blocked - master file protected")
 
             elif duplicate_handling == "rename":
-                final_dest_path = generate_unique_duplicate_filename(dest_path.parent, filename, duplicate_keyword)
+                final_dest_path = generate_unique_duplicate_filename(
+                    dest_path.parent, filename, duplicate_keyword
+                )
                 duplicate_action = f" [RENAMED - not master -> {final_dest_path.name}]"
 
             elif duplicate_handling == "content":
                 if has_content_duplicate:
                     # Identical content - skip
                     duplicate_action = " [SKIPPED - identical content]"
-                    logger.info(f"  {source_path}  {comment:>{space}}    skipped - identical content to master")
+                    logger.info(
+                        f"  {source_path}  {comment:>{space}}    skipped - identical content to master"
+                    )
                     return 0
                 else:
                     # Different content - rename
-                    final_dest_path = generate_unique_duplicate_filename(dest_path.parent, filename, duplicate_keyword)
-                    duplicate_action = f" [RENAMED - different from master -> {final_dest_path.name}]"
+                    final_dest_path = generate_unique_duplicate_filename(
+                        dest_path.parent, filename, duplicate_keyword
+                    )
+                    duplicate_action = (
+                        f" [RENAMED - different from master -> {final_dest_path.name}]"
+                    )
 
             elif duplicate_handling == "interactive":
                 choice = prompt_user_for_duplicate_action(
-                    source_path, dest_path, has_content_duplicate, content_duplicates, logger
+                    source_path,
+                    dest_path,
+                    has_content_duplicate,
+                    content_duplicates,
+                    logger,
                 )
                 if choice == "skip":
                     duplicate_action = " [SKIPPED - user choice]"
-                    logger.info(f"  {source_path}  {comment:>{space}}    skipped - user choice")
+                    logger.info(
+                        f"  {source_path}  {comment:>{space}}    skipped - user choice"
+                    )
                     return 0
                 elif choice == "overwrite":
                     # Even in interactive mode, protect the master
-                    final_dest_path = generate_unique_duplicate_filename(dest_path.parent, filename, duplicate_keyword)
-                    duplicate_action = f" [RENAMED - master protected -> {final_dest_path.name}]"
+                    final_dest_path = generate_unique_duplicate_filename(
+                        dest_path.parent, filename, duplicate_keyword
+                    )
+                    duplicate_action = (
+                        f" [RENAMED - master protected -> {final_dest_path.name}]"
+                    )
                     logger.info(f"    Overwrite blocked - master file protected")
                 elif choice == "rename":
-                    final_dest_path = generate_unique_duplicate_filename(dest_path.parent, filename, duplicate_keyword)
-                    duplicate_action = f" [RENAMED - user choice -> {final_dest_path.name}]"
+                    final_dest_path = generate_unique_duplicate_filename(
+                        dest_path.parent, filename, duplicate_keyword
+                    )
+                    duplicate_action = (
+                        f" [RENAMED - user choice -> {final_dest_path.name}]"
+                    )
                 elif choice == "redirect":
                     if not redirect_path:
-                        redirect_path = setup_redirect_directory(dest_path.parent.parent, "Duplicates", logger)
+                        redirect_path = setup_redirect_directory(
+                            dest_path.parent.parent, "Duplicates", logger
+                        )
                     final_dest_path = redirect_path / filename
                     if final_dest_path.exists():
-                        final_dest_path = generate_unique_duplicate_filename(redirect_path, filename, duplicate_keyword)
-                    duplicate_action = f" [REDIRECTED - user choice -> {final_dest_path}]"
+                        final_dest_path = generate_unique_duplicate_filename(
+                            redirect_path, filename, duplicate_keyword
+                        )
+                    duplicate_action = (
+                        f" [REDIRECTED - user choice -> {final_dest_path}]"
+                    )
 
             elif duplicate_handling == "redirect":
                 if not redirect_path:
-                    redirect_path = setup_redirect_directory(dest_path.parent.parent, "Duplicates", logger)
+                    redirect_path = setup_redirect_directory(
+                        dest_path.parent.parent, "Duplicates", logger
+                    )
                 final_dest_path = redirect_path / filename
                 if final_dest_path.exists():
-                    final_dest_path = generate_unique_duplicate_filename(redirect_path, filename, duplicate_keyword)
+                    final_dest_path = generate_unique_duplicate_filename(
+                        redirect_path, filename, duplicate_keyword
+                    )
                 duplicate_action = f" [REDIRECTED - not master -> {final_dest_path}]"
 
     # Perform the actual file operation
@@ -843,17 +940,26 @@ def handle_file_operation(
         if files_to_demote and not dryrun:
             for demoted_file in files_to_demote:
                 # Determine where to move the demoted file
-                if duplicate_handling == "redirect" or duplicate_handling == "interactive":
+                if (
+                    duplicate_handling == "redirect"
+                    or duplicate_handling == "interactive"
+                ):
                     # Move to redirect directory
                     if not redirect_path:
-                        redirect_path = setup_redirect_directory(demoted_file.parent.parent, "Duplicates", logger)
+                        redirect_path = setup_redirect_directory(
+                            demoted_file.parent.parent, "Duplicates", logger
+                        )
 
                     demoted_dest = redirect_path / demoted_file.name
                     if demoted_dest.exists():
-                        demoted_dest = generate_unique_duplicate_filename(redirect_path, demoted_file.name, duplicate_keyword)
+                        demoted_dest = generate_unique_duplicate_filename(
+                            redirect_path, demoted_file.name, duplicate_keyword
+                        )
                 else:
                     # Rename in place
-                    demoted_dest = generate_duplicate_filename(demoted_file, duplicate_keyword)
+                    demoted_dest = generate_duplicate_filename(
+                        demoted_file, duplicate_keyword
+                    )
                     if demoted_dest.exists():
                         demoted_dest = generate_unique_filename(demoted_dest)
 
@@ -870,7 +976,9 @@ def handle_file_operation(
                             hash_cache.add_file(demoted_dest, demoted_hash)
 
                 except Exception as e:
-                    logger.error(f"Failed to demote {demoted_file} to {demoted_dest}: {e}")
+                    logger.error(
+                        f"Failed to demote {demoted_file} to {demoted_dest}: {e}"
+                    )
                     # Continue with other demotions even if one fails
 
         # Log demotion actions even in dry run mode
@@ -899,32 +1007,38 @@ def handle_file_operation(
             f"  {source_path}  {comment:>{space}}  {timestamp} {flag_action:>3} {final_dest_path.parent}{duplicate_action}"
             + (" [DRY RUN]" if dryrun else "")
         )
-        
+
         return 1
-        
+
     except Exception as e:
         logger.error(f"Failed to {flag_action} {source_path} to {final_dest_path}: {e}")
         return 0
 
 
-def prompt_user_for_duplicate_action(source_path: Path, dest_path: Path, has_content_duplicate: bool, content_duplicates: list, logger):
+def prompt_user_for_duplicate_action(
+    source_path: Path,
+    dest_path: Path,
+    has_content_duplicate: bool,
+    content_duplicates: list,
+    logger,
+):
     """
     Prompt user interactively for how to handle a duplicate file.
-    
+
     Returns:
         str: User's choice - 'skip', 'overwrite', 'rename', or 'redirect'
     """
     print(f"\nDuplicate detected for: {source_path.name}")
     print(f"Target location: {dest_path}")
-    
+
     if has_content_duplicate:
         print("Content duplicates found at:")
         for dup_path in content_duplicates:
             print(f"  - {dup_path}")
-    
+
     if dest_path.exists():
         print(f"Filename conflict at: {dest_path}")
-    
+
     while True:
         print("\nChoose action:")
         print("  s) Skip this file")
@@ -932,15 +1046,15 @@ def prompt_user_for_duplicate_action(source_path: Path, dest_path: Path, has_con
         print("  r) Rename with suffix")
         print("  R) Redirect to duplicates directory")
         choice = input("Your choice [s/o/r/R]: ").lower().strip()
-        
-        if choice in ['s', 'skip']:
-            return 'skip'
-        elif choice in ['o', 'overwrite']:
-            return 'overwrite'
-        elif choice in ['r', 'rename']:
-            return 'rename'
-        elif choice in ['R', 'redirect']:
-            return 'redirect'
+
+        if choice in ["s", "skip"]:
+            return "skip"
+        elif choice in ["o", "overwrite"]:
+            return "overwrite"
+        elif choice in ["r", "rename"]:
+            return "rename"
+        elif choice in ["R", "redirect"]:
+            return "redirect"
         else:
             print("Invalid choice. Please enter s, o, r, or R.")
 
@@ -979,7 +1093,7 @@ def recursive_walk(
     redirect_path = None
     if duplicate_handling == "redirect":
         redirect_path = setup_redirect_directory(destination_dir, redirect_dir, logger)
-    
+
     # Initialize counters for statistics
     total_files = 0
     processed_files = 0
@@ -1053,7 +1167,7 @@ def moveFile(
     """
     # Initialize duplicate action tracking
     duplicate_action = ""
-    
+
     # Construct full path to the file
     fullpath = folder / filename
 
@@ -1120,12 +1234,23 @@ def moveFile(
 
             # Define full destination file path
             dest_file_path = destf / filename
-            
+
             # Comprehensive duplicate detection and handling
             return handle_file_operation(
-                fullpath, dest_file_path, action, duplicate_handling, 
-                hash_cache, redirect_path, duplicate_keyword, 
-                dryrun, logger, cd, comment, space, filename, flagM
+                fullpath,
+                dest_file_path,
+                action,
+                duplicate_handling,
+                hash_cache,
+                redirect_path,
+                duplicate_keyword,
+                dryrun,
+                logger,
+                cd,
+                comment,
+                space,
+                filename,
+                flagM,
             )
         elif exif_only == "fs" and comment.isspace():
             # Skip files with EXIF when exifOnly is "fs" (only process files without EXIF)
@@ -1391,7 +1516,7 @@ def main(args=None):
 
     # Validate source and destination directories
     validate_args(source_dir, destination_dir, logger)
-    
+
     # Log extension processing mode
     if ext_list is None:
         logger.info("Processing ALL file types supported by hachoir")
@@ -1411,7 +1536,7 @@ def main(args=None):
     hash_cache = None
     if not parsed_args.no_comprehensive_check:
         hash_cache = TargetHashCache(destination_dir, logger)
-    
+
     # Begin recursive processing of files
     recursive_walk(
         source_dir,

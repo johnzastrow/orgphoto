@@ -6,9 +6,11 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "hachoir>=3.3.0",
+    "ruff>=0.14.0",
 ]
 
 [dependency-groups]
 dev = [
     "pyinstaller>=6.15.0",
+    "ruff>=0.14.0",
 ]
