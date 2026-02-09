@@ -10,10 +10,7 @@ import subprocess
 import tempfile
 import shutil
 from pathlib import Path
-import hashlib
-import time
 from datetime import datetime
-import os
 import sys
 
 
@@ -405,7 +402,7 @@ class IntegrationTestRunner:
         # Summary
         passed = sum(results)
         total = len(results)
-        print(f"\n=== Test Summary ===")
+        print("\n=== Test Summary ===")
         print(f"Passed: {passed}/{total}")
 
         if passed == total:

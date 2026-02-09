@@ -80,6 +80,16 @@ import argparse
 from pathlib import Path
 import os
 import hashlib
+import sqlite3
+import time
+
+# Optional fast EXIF extraction (header-only, much faster than hachoir for images)
+try:
+    import exifread
+
+    _HAS_EXIFREAD = True
+except ImportError:
+    _HAS_EXIFREAD = False
 
 # Third-party library imports for metadata extraction
 from hachoir.parser import createParser
@@ -109,8 +119,15 @@ config.quiet = True
 #          Improved log readability with structured headers and session separators
 # v2.0.2 - Enhanced logging to include full source path for better traceability
 #          Log entries now show complete file paths instead of just filenames
-__version__ = "2.0.2"
-myversion = f"v. {__version__} 2025-10-14"
+# v2.1.0 - Persistent SQLite hash cache: stores SHA-256 hashes in .orgphoto_cache.db
+#          Validates cached entries via mtime+size; only rehashes new/modified files
+#          Added -C/--cache-dir flag to place cache DB on a faster drive
+#          Added -B/--benchmark flag to time hash cache build and report statistics
+#          Fast EXIF via exifread now default for image/RAW files (JPEG, HEIC, CR2, NEF,
+#          DNG, etc.); falls back to hachoir for video/audio. Use --no-fast-exif to disable.
+#          Adds HEIC/RAW format support that hachoir lacks.
+__version__ = "2.1.0"
+myversion = f"v. {__version__} 2026-02-08"
 
 
 def calculate_file_hash(file_path: Path, algorithm: str = "sha256") -> str:
@@ -312,53 +329,223 @@ class TargetHashCache:
     """
     Cache for storing and managing SHA256 hashes of files in the target directory.
     Provides comprehensive duplicate detection across the entire target tree.
+
+    Hashes are persisted in a SQLite database (.orgphoto_cache.db) so that
+    subsequent runs can skip rehashing unchanged files.  A file is considered
+    unchanged when both its mtime and size match the cached values.
     """
 
-    def __init__(self, target_dir: Path, logger):
+    _SCHEMA_VERSION = "1"
+    _DB_FILENAME = ".orgphoto_cache.db"
+    # Files to skip when scanning the target directory
+    _SKIP_SUFFIXES = {".db", ".db-wal", ".db-shm"}
+
+    def __init__(self, target_dir: Path, logger, cache_dir: Path = None):
         self.target_dir = target_dir
         self.logger = logger
         # Dictionary mapping hash -> list of file paths with that hash
         self.hash_to_files = {}
         # Dictionary mapping file path -> (hash, mtime) for cache invalidation
         self.file_to_hash_mtime = {}
+        # SQLite connection (None = in-memory-only fallback)
+        self.conn = None
+
+        # Determine where to place the DB file
+        db_dir = cache_dir if cache_dir is not None else target_dir
+        self.db_path = db_dir / self._DB_FILENAME
+
+        self._init_db()
         self._build_cache()
 
+    # ------------------------------------------------------------------
+    # SQLite helpers
+    # ------------------------------------------------------------------
+
+    def _init_db(self):
+        """Open or create the SQLite cache database."""
+        try:
+            # Ensure parent directory exists
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+
+            self.conn = sqlite3.connect(str(self.db_path))
+            self.conn.execute("PRAGMA journal_mode=WAL")
+            self.conn.execute("PRAGMA synchronous=NORMAL")
+
+            # Create tables
+            self.conn.execute(
+                "CREATE TABLE IF NOT EXISTS cache_meta "
+                "(key TEXT PRIMARY KEY, value TEXT)"
+            )
+            self.conn.execute(
+                "CREATE TABLE IF NOT EXISTS file_hashes ("
+                "  file_path TEXT PRIMARY KEY,"
+                "  file_hash TEXT NOT NULL,"
+                "  file_size INTEGER NOT NULL,"
+                "  file_mtime REAL NOT NULL"
+                ")"
+            )
+            self.conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_file_hash ON file_hashes(file_hash)"
+            )
+
+            # Check schema version
+            row = self.conn.execute(
+                "SELECT value FROM cache_meta WHERE key='schema_version'"
+            ).fetchone()
+            if row is None:
+                self.conn.execute(
+                    "INSERT INTO cache_meta (key, value) VALUES ('schema_version', ?)",
+                    (self._SCHEMA_VERSION,),
+                )
+                self.conn.commit()
+            elif row[0] != self._SCHEMA_VERSION:
+                self.logger.info(
+                    f"Cache schema changed ({row[0]} -> {self._SCHEMA_VERSION}), rebuilding"
+                )
+                self.conn.execute("DROP TABLE IF EXISTS file_hashes")
+                self.conn.execute(
+                    "CREATE TABLE file_hashes ("
+                    "  file_path TEXT PRIMARY KEY,"
+                    "  file_hash TEXT NOT NULL,"
+                    "  file_size INTEGER NOT NULL,"
+                    "  file_mtime REAL NOT NULL"
+                    ")"
+                )
+                self.conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_file_hash ON file_hashes(file_hash)"
+                )
+                self.conn.execute(
+                    "UPDATE cache_meta SET value=? WHERE key='schema_version'",
+                    (self._SCHEMA_VERSION,),
+                )
+                self.conn.commit()
+
+            self.logger.debug(f"Hash cache database: {self.db_path}")
+
+        except Exception as e:
+            self.logger.warning(
+                f"Failed to initialise hash cache database ({e}); "
+                "falling back to in-memory cache"
+            )
+            self.conn = None
+
     def _build_cache(self):
-        """Build the initial hash cache by scanning all existing files in target directory."""
+        """Build the hash cache by scanning target directory and reusing persisted hashes."""
         if not self.target_dir.exists():
             return
 
         self.logger.info("Building comprehensive hash cache of target directory...")
-        cache_count = 0
+        print("Building hash cache of target directory...", flush=True)
+        self._build_start_time = time.monotonic()
 
-        # Recursively walk through target directory
+        # Load existing DB rows keyed by relative POSIX path
+        db_rows = {}
+        if self.conn is not None:
+            for row in self.conn.execute(
+                "SELECT file_path, file_hash, file_size, file_mtime FROM file_hashes"
+            ):
+                db_rows[row[0]] = (row[1], row[2], row[3])  # hash, size, mtime
+
+        reused = 0
+        hashed = 0
+        stale = set(db_rows.keys())  # will remove keys we see on disk
+        inserts = []  # (rel_path, hash, size, mtime)
+
         for file_path in self.target_dir.rglob("*"):
-            if file_path.is_file():
-                try:
-                    file_hash = calculate_file_hash(file_path)
-                    if file_hash:
-                        file_mtime = file_path.stat().st_mtime
+            if not file_path.is_file():
+                continue
+            # Skip our own database files
+            if file_path.suffix in self._SKIP_SUFFIXES and file_path.stem.startswith(
+                ".orgphoto_cache"
+            ):
+                continue
 
-                        # Add to hash->files mapping
-                        if file_hash not in self.hash_to_files:
-                            self.hash_to_files[file_hash] = []
-                        self.hash_to_files[file_hash].append(file_path)
+            rel_path = file_path.relative_to(self.target_dir).as_posix()
+            stale.discard(rel_path)
 
-                        # Add to file->hash mapping with mtime for cache invalidation
-                        self.file_to_hash_mtime[file_path] = (file_hash, file_mtime)
-                        cache_count += 1
+            try:
+                st = file_path.stat()
+                file_size = st.st_size
+                file_mtime = st.st_mtime
+            except OSError as e:
+                self.logger.warning(f"Cannot stat {file_path}: {e}")
+                continue
 
-                        if cache_count % 100 == 0:
-                            self.logger.debug(f"Cached {cache_count} file hashes...")
+            # Check if cached entry is still valid
+            cached = db_rows.get(rel_path)
+            if (
+                cached is not None
+                and cached[1] == file_size
+                and cached[2] == file_mtime
+            ):
+                # Reuse cached hash
+                file_hash = cached[0]
+                reused += 1
+            else:
+                # Compute hash
+                file_hash = calculate_file_hash(file_path)
+                if not file_hash:
+                    continue
+                hashed += 1
+                inserts.append((rel_path, file_hash, file_size, file_mtime))
 
-                except Exception as e:
-                    self.logger.warning(
-                        f"Failed to hash existing file {file_path}: {e}"
+            # Populate in-memory structures
+            if file_hash not in self.hash_to_files:
+                self.hash_to_files[file_hash] = []
+            self.hash_to_files[file_hash].append(file_path)
+            self.file_to_hash_mtime[file_path] = (file_hash, file_mtime)
+
+            total = reused + hashed
+            if total % 500 == 0:
+                elapsed = time.monotonic() - self._build_start_time
+                print(
+                    f"\r  {total} files scanned ({reused} cached, {hashed} hashed) [{elapsed:.1f}s]",
+                    end="",
+                    flush=True,
+                )
+                self.logger.debug(f"Cached {total} file hashes...")
+
+        # Persist changes to DB
+        if self.conn is not None:
+            try:
+                cur = self.conn.cursor()
+                # Remove stale entries
+                for rel_path in stale:
+                    cur.execute(
+                        "DELETE FROM file_hashes WHERE file_path=?", (rel_path,)
                     )
+                # Insert/update new hashes
+                cur.executemany(
+                    "INSERT OR REPLACE INTO file_hashes "
+                    "(file_path, file_hash, file_size, file_mtime) "
+                    "VALUES (?, ?, ?, ?)",
+                    inserts,
+                )
+                self.conn.commit()
+            except Exception as e:
+                self.logger.warning(f"Failed to persist hash cache: {e}")
 
-        self.logger.info(
-            f"Hash cache built: {cache_count} files indexed, {len(self.hash_to_files)} unique hashes"
+        elapsed = time.monotonic() - self._build_start_time
+        total_files = reused + hashed
+        # Clear progress line and print summary to console
+        print(
+            f"\r  Hash cache ready: {total_files} files "
+            f"({reused} cached, {hashed} hashed) in {elapsed:.1f}s"
         )
+        self.logger.info(
+            f"Hash cache built: {total_files} files indexed, "
+            f"{len(self.hash_to_files)} unique hashes "
+            f"(reused: {reused}, hashed: {hashed}, stale removed: {len(stale)}) "
+            f"in {elapsed:.2f}s"
+        )
+        # Store stats for benchmark reporting
+        self._build_stats = {
+            "reused": reused,
+            "hashed": hashed,
+            "stale_removed": len(stale),
+            "total_files": total_files,
+            "elapsed_seconds": elapsed,
+        }
 
     def find_duplicates(self, source_file_path: Path, source_hash: str = None):
         """
@@ -391,7 +578,9 @@ class TargetHashCache:
             file_hash = calculate_file_hash(file_path)
 
         if file_hash:
-            file_mtime = file_path.stat().st_mtime
+            st = file_path.stat()
+            file_mtime = st.st_mtime
+            file_size = st.st_size
 
             # Add to hash->files mapping
             if file_hash not in self.hash_to_files:
@@ -400,6 +589,20 @@ class TargetHashCache:
 
             # Add to file->hash mapping
             self.file_to_hash_mtime[file_path] = (file_hash, file_mtime)
+
+            # Persist to DB
+            if self.conn is not None:
+                try:
+                    rel_path = file_path.relative_to(self.target_dir).as_posix()
+                    self.conn.execute(
+                        "INSERT OR REPLACE INTO file_hashes "
+                        "(file_path, file_hash, file_size, file_mtime) "
+                        "VALUES (?, ?, ?, ?)",
+                        (rel_path, file_hash, file_size, file_mtime),
+                    )
+                    self.conn.commit()
+                except Exception as e:
+                    self.logger.debug(f"Failed to persist hash for {file_path}: {e}")
 
     def invalidate_file(self, file_path: Path):
         """
@@ -424,6 +627,17 @@ class TargetHashCache:
                 except ValueError:
                     pass  # File wasn't in the list
 
+            # Remove from DB
+            if self.conn is not None:
+                try:
+                    rel_path = file_path.relative_to(self.target_dir).as_posix()
+                    self.conn.execute(
+                        "DELETE FROM file_hashes WHERE file_path=?", (rel_path,)
+                    )
+                    self.conn.commit()
+                except Exception as e:
+                    self.logger.debug(f"Failed to remove hash for {file_path}: {e}")
+
     def get_stats(self):
         """Return cache statistics."""
         return {
@@ -433,6 +647,19 @@ class TargetHashCache:
                 1 for files in self.hash_to_files.values() if len(files) > 1
             ),
         }
+
+    def get_build_stats(self):
+        """Return build timing statistics (for benchmark reporting)."""
+        return getattr(self, "_build_stats", None)
+
+    def close(self):
+        """Close the SQLite connection."""
+        if self.conn is not None:
+            try:
+                self.conn.close()
+            except Exception:
+                pass
+            self.conn = None
 
 
 def set_up_logging(destination_dir: Path, verbose: bool):
@@ -540,6 +767,81 @@ def get_created_date(filename: Path, logger):
         logger.debug(f"Error during metadata extraction for {filename}: {e}")
 
     return created_date
+
+
+# File extensions where exifread is expected to work (JPEG, TIFF, HEIC, RAW formats)
+_EXIFREAD_EXTENSIONS = {
+    ".jpg",
+    ".jpeg",
+    ".jpe",
+    ".tif",
+    ".tiff",
+    ".heic",
+    ".heif",
+    ".webp",
+    ".png",
+    ".cr2",
+    ".cr3",
+    ".nef",
+    ".arw",
+    ".dng",
+    ".orf",
+    ".rw2",
+    ".raf",
+    ".pef",
+    ".srw",
+}
+
+
+def get_created_date_fast(filename: Path, logger):
+    """
+    Fast creation date extraction using exifread (header-only read).
+
+    Tries exifread first for supported image types, then falls back to
+    hachoir for video/audio or when exifread fails.
+
+    Args:
+        filename (Path): Path to the file to extract metadata from
+        logger (logging.Logger): Logger for recording issues
+
+    Returns:
+        datetime.datetime or None: Creation date if found, otherwise None
+    """
+    ext = filename.suffix.lower()
+
+    # Try exifread for supported image/RAW types
+    if _HAS_EXIFREAD and ext in _EXIFREAD_EXTENSIONS:
+        try:
+            with open(filename, "rb") as f:
+                tags = exifread.process_file(
+                    f, stop_tag="DateTimeOriginal", details=False
+                )
+
+            # Try date tags in priority order
+            for tag_name in (
+                "EXIF DateTimeOriginal",
+                "EXIF DateTimeDigitized",
+                "Image DateTime",
+            ):
+                tag = tags.get(tag_name)
+                if tag:
+                    date_str = str(tag)
+                    try:
+                        return datetime.datetime.strptime(
+                            date_str, "%Y:%m:%d %H:%M:%S"
+                        )
+                    except ValueError:
+                        logger.debug(
+                            f"exifread: unparseable date '{date_str}' in {filename}"
+                        )
+                        continue
+
+            logger.debug(f"exifread: no date tags found in {filename}")
+        except Exception as e:
+            logger.debug(f"exifread failed for {filename}: {e}")
+
+    # Fall back to hachoir (handles video, audio, and anything exifread missed)
+    return get_created_date(filename, logger)
 
 
 def validate_args(source_dir: Path, destination_dir: Path, logger):
@@ -673,7 +975,11 @@ def calculate_master_score(
 
 
 def select_master_file(
-    incoming_file: Path, incoming_date: datetime.datetime, existing_files: list, logger
+    incoming_file: Path,
+    incoming_date: datetime.datetime,
+    existing_files: list,
+    logger,
+    fast_exif=False,
 ) -> tuple:
     """
     Determine which file should be the master among duplicates.
@@ -694,10 +1000,11 @@ def select_master_file(
 
     candidates = [(incoming_file, incoming_date, incoming_score, "incoming")]
 
+    _get_date = get_created_date_fast if fast_exif else get_created_date
     for existing_path in existing_files:
         # Get the creation date for existing file
         try:
-            existing_date = get_created_date(existing_path, logger)
+            existing_date = _get_date(existing_path, logger)
             if not existing_date:
                 existing_date = datetime.datetime.fromtimestamp(
                     existing_path.stat().st_mtime
@@ -747,6 +1054,7 @@ def handle_file_operation(
     space: int,
     filename: str,
     flag_action: str,
+    fast_exif=False,
 ):
     """
     Handle file operation with comprehensive duplicate detection and various handling modes.
@@ -777,7 +1085,7 @@ def handle_file_operation(
         if has_filename_duplicate:
             conflict_reasons.append(f"filename conflict at {dest_path}")
         if has_content_duplicate:
-            conflict_reasons.append(f"content duplicate (SHA-256 match)")
+            conflict_reasons.append("content duplicate (SHA-256 match)")
             for dup_path in content_duplicates:
                 logger.info(
                     f"  DUPLICATE CONFLICT: {filename} matches existing file {dup_path} (reason: identical content)"
@@ -807,7 +1115,11 @@ def handle_file_operation(
 
         # Perform master selection to determine which file should be the master
         master_path, non_masters, master_origin = select_master_file(
-            source_path, creation_date, list(all_conflicting_files), logger
+            source_path,
+            creation_date,
+            list(all_conflicting_files),
+            logger,
+            fast_exif=fast_exif,
         )
 
         # Check if incoming file is the master
@@ -853,7 +1165,7 @@ def handle_file_operation(
                 duplicate_action = (
                     f" [RENAMED - master protected -> {final_dest_path.name}]"
                 )
-                logger.info(f"    Overwrite blocked - master file protected")
+                logger.info("    Overwrite blocked - master file protected")
 
             elif duplicate_handling == "rename":
                 final_dest_path = generate_unique_duplicate_filename(
@@ -900,7 +1212,7 @@ def handle_file_operation(
                     duplicate_action = (
                         f" [RENAMED - master protected -> {final_dest_path.name}]"
                     )
-                    logger.info(f"    Overwrite blocked - master file protected")
+                    logger.info("    Overwrite blocked - master file protected")
                 elif choice == "rename":
                     final_dest_path = generate_unique_duplicate_filename(
                         dest_path.parent, filename, duplicate_keyword
@@ -1072,6 +1384,7 @@ def recursive_walk(
     redirect_dir="Duplicates",
     duplicate_keyword="duplicate",
     hash_cache=None,
+    fast_exif=False,
 ):
     """
     Recursively walk through directories and process matching files.
@@ -1097,6 +1410,9 @@ def recursive_walk(
     # Initialize counters for statistics
     total_files = 0
     processed_files = 0
+    walk_start = time.monotonic()
+    dry_label = "[DRY RUN] " if dryrun else ""
+    print(f"{dry_label}Processing files ({action})...", flush=True)
 
     # Walk through all directories and files recursively
     for folderName, _, filenames in os.walk(source_dir):
@@ -1109,6 +1425,12 @@ def recursive_walk(
             # Check if file should be processed (either matching extension or all files mode)
             if ext_list is None or file_extension in ext_list:
                 total_files += 1
+                elapsed = time.monotonic() - walk_start
+                print(
+                    f"\r  [{elapsed:.1f}s] {total_files} scanned, {processed_files} processed: {filename[:40]}",
+                    end="                    ",
+                    flush=True,
+                )
 
                 # Process the file and update count if successful
                 processed_files += moveFile(
@@ -1123,13 +1445,18 @@ def recursive_walk(
                     hash_cache,
                     redirect_path,
                     duplicate_keyword,
+                    fast_exif=fast_exif,
                 )
 
-                # Report progress periodically
-                if processed_files % 100 == 0:
+                # Report progress periodically to log
+                if total_files % 100 == 0:
                     logger.info(f"Processed {processed_files} files so far...")
 
     # Log final statistics
+    elapsed = time.monotonic() - walk_start
+    print(
+        f"\r  Done: {total_files} files scanned, {processed_files} processed in {elapsed:.1f}s"
+    )
     logger.info(f"Total files matched: {total_files}, processed: {processed_files}")
 
 
@@ -1145,6 +1472,7 @@ def moveFile(
     hash_cache=None,
     redirect_path=None,
     duplicate_keyword="duplicate",
+    fast_exif=False,
 ):
     """
     Move or copy a file to the destination directory, organizing by date.
@@ -1172,8 +1500,9 @@ def moveFile(
     fullpath = folder / filename
 
     # Try to get creation date from EXIF metadata
+    _get_date = get_created_date_fast if fast_exif else get_created_date
     try:
-        cd = get_created_date(fullpath, logger)
+        cd = _get_date(fullpath, logger)
     except Exception as e:
         logger.error(f"Error extracting date from {fullpath}: {e}")
         return 0
@@ -1251,6 +1580,7 @@ def moveFile(
                 space,
                 filename,
                 flagM,
+                fast_exif=fast_exif,
             )
         elif exif_only == "fs" and comment.isspace():
             # Skip files with EXIF when exifOnly is "fs" (only process files without EXIF)
@@ -1291,7 +1621,7 @@ class VersionedArgumentParser(argparse.ArgumentParser):
         if "required" in message and len(sys.argv) == 1:
             sys.stderr.write(f"orgphoto {myversion}\n\n")
             sys.stderr.write(f"error: {message}\n")
-            sys.stderr.write(f"Try 'op.py --help' for more information.\n")
+            sys.stderr.write("Try 'op.py --help' for more information.\n")
         else:
             sys.stderr.write(f"{self.prog}: error: {message}\n")
             sys.stderr.write(f"Try '{self.prog} --help' for more information.\n")
@@ -1369,7 +1699,7 @@ IMPORTANT NOTES:
         "-j",
         "--extensions",
         default=None,
-        help="File extensions to process, comma-separated without dots. Examples: 'jpg,png,heic' for photos, 'mp4,mov,avi' for videos, 'jpg,png,mp4,mov' for mixed media. Supports all 33+ formats recognized by hachoir library including images (jpg, png, gif, heic, tiff), videos (mp4, mov, avi, flv), audio (mp3, wav, flac), and documents (pdf). If not specified, processes ALL supported file types [default: all types]",
+        help="File extensions to process, comma-separated without dots. Examples: 'jpg,png,heic' for photos, 'mp4,mov,avi' for videos, 'jpg,png,mp4,mov' for mixed media. Supports all 33+ formats recognized by hachoir library including images (jpg, png, gif, heic, tiff), videos (mp4, mov, avi, flv), audio (mp3, wav, flac), and documents (pdf). If this option is omitted, ALL files in the source directory tree are processed regardless of extension — no filtering is applied [default: all types]",
         metavar="EXT",
         dest="extense",
     )
@@ -1426,6 +1756,34 @@ IMPORTANT NOTES:
         default="duplicate",
         help="Custom keyword inserted into filenames for duplicate handling. Used with '-D rename', '-D redirect', and '-D content' modes. Examples: 'copy' creates 'photo_copy.jpg', 'version' creates 'photo_version.jpg', 'alt' creates 'photo_alt.jpg'. Multiple duplicates get incremental numbers: 'photo_copy_001.jpg', 'photo_copy_002.jpg'. Keep short to avoid long filenames [default: duplicate]",
         dest="duplicate_keyword",
+    )
+
+    parser.add_argument(
+        "-C",
+        "--cache-dir",
+        default=None,
+        help="Directory to store the hash cache database (.orgphoto_cache.db). Defaults to the target directory. Use this to place the cache on a faster drive (e.g. SSD) when photos are on a slower drive (HDD). Example: -C /fast_ssd/cache",
+        dest="cache_dir",
+        metavar="DIR",
+    )
+
+    parser.add_argument(
+        "--no-fast-exif",
+        action="store_true",
+        help="Disable fast EXIF extraction via exifread and use hachoir for all files. "
+        "By default, exifread is used for image files (JPEG, TIFF, HEIC, RAW) because it "
+        "reads only the file header instead of parsing the entire file (5-50x faster), "
+        "with automatic fallback to hachoir for video/audio or on failure. "
+        "Use this flag to force hachoir-only extraction if exifread produces unexpected results.",
+        dest="no_fast_exif",
+    )
+
+    parser.add_argument(
+        "-B",
+        "--benchmark",
+        action="store_true",
+        help="Print hash cache build timing to the console. Shows how long the cache build took, how many files were reused from the persistent cache vs. freshly hashed, and the speedup compared to a full rehash. Useful for verifying the benefit of the persistent SQLite cache.",
+        dest="benchmark",
     )
 
     parser.add_argument(
@@ -1508,8 +1866,8 @@ def main(args=None):
     # Log script start with comprehensive version information
     start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info("=" * 80)
-    logger.info(f"orgphoto - Photo Organization Tool")
-    logger.info(f"Version: {__version__} (Release Date: 2025-10-14)")
+    logger.info("orgphoto - Photo Organization Tool")
+    logger.info(f"Version: {__version__} (Release Date: 2026-02-08)")
     logger.info(f"Session Started: {start_time}")
     logger.info("=" * 80)
     logger.debug("Command-line options: %s", vars(parsed_args))
@@ -1532,12 +1890,37 @@ def main(args=None):
         logger.error(f"Failed to create destination directory {destination_dir}: {e}")
         sys.exit(1)
 
+    # Resolve cache directory for persistent hash DB
+    cache_dir = None
+    if parsed_args.cache_dir is not None:
+        cache_dir = Path(parsed_args.cache_dir).expanduser().resolve()
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
     # Initialize hash cache for comprehensive duplicate detection (unless disabled)
     hash_cache = None
     if not parsed_args.no_comprehensive_check:
-        hash_cache = TargetHashCache(destination_dir, logger)
+        hash_cache = TargetHashCache(destination_dir, logger, cache_dir=cache_dir)
 
-    # Begin recursive processing of files
+        # Print benchmark info to console if requested
+        if parsed_args.benchmark:
+            stats = hash_cache.get_build_stats()
+            if stats:
+                print("\n--- Hash Cache Benchmark ---")
+                print(f"Total files indexed : {stats['total_files']}")
+                print(f"Reused from cache   : {stats['reused']}")
+                print(f"Freshly hashed      : {stats['hashed']}")
+                print(f"Stale entries purged: {stats['stale_removed']}")
+                print(f"Elapsed time        : {stats['elapsed_seconds']:.3f}s")
+                if stats["reused"] > 0 and stats["total_files"] > 0:
+                    pct = stats["reused"] / stats["total_files"] * 100
+                    print(f"Cache hit rate      : {pct:.1f}%")
+                print("----------------------------\n")
+
+    # Determine EXIF extraction mode (fast exifread by default, hachoir as fallback)
+    fast_exif = not parsed_args.no_fast_exif
+    if fast_exif and not _HAS_EXIFREAD:
+        fast_exif = False
+
     recursive_walk(
         source_dir,
         destination_dir,
@@ -1551,6 +1934,7 @@ def main(args=None):
         redirect_dir=parsed_args.redirect_dir,
         duplicate_keyword=parsed_args.duplicate_keyword,
         hash_cache=hash_cache,
+        fast_exif=fast_exif,
     )
 
     # Log script end
@@ -1559,6 +1943,10 @@ def main(args=None):
     logger.info(f"Session Ended: {end_time}")
     logger.info("=" * 80)
     logger.info("")  # Add blank line between sessions
+
+    # Close hash cache database connection
+    if hash_cache is not None:
+        hash_cache.close()
 
     # Ensure all log messages are written
     logging.shutdown()

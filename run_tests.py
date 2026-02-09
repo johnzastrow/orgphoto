@@ -7,7 +7,6 @@ Runs both unit tests and integration tests with proper setup and reporting.
 
 import sys
 import subprocess
-import os
 from pathlib import Path
 
 

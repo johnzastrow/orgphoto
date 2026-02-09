@@ -85,7 +85,7 @@ The application processes images and videos with these key features:
   - `interactive` - Prompt user for each duplicate
   - `redirect` - Move duplicates to separate directory with intelligent renaming
 - **Performance control**: Use `-N` or `--no-comprehensive-check` to disable comprehensive checking for large target directories
-- **Hash caching**: Builds and maintains an in-memory hash database of target files for efficient duplicate detection
+- **Hash caching**: Builds and maintains a persistent SQLite hash database of target files for efficient duplicate detection; only rehashes new or modified files on subsequent runs
 - **Extensible formats**: Supports all file types recognized by hachoir library
 - **Detailed logging**: Progress reporting and operation logging to destination directory
 
@@ -139,9 +139,16 @@ uv run op.py -m -D interactive -j jpg source/ target/  # User can choose redirec
    - MINOR: New features, significant enhancements (like new default behavior)
    - PATCH: Bug fixes, minor improvements, documentation updates
 
-**Current version: 2.0.1** (as of 2025-10-14)
+**Current version: 2.1.0** (as of 2026-02-08)
 
 **Recent version history:**
+- v2.1.0: Persistent SQLite hash cache (.orgphoto_cache.db) with mtime+size validation
+  - Only rehashes new/modified files; reuses cached hashes for unchanged files
+  - Added `-C`/`--cache-dir` flag to place cache DB on a different (faster) drive
+  - Added `-B`/`--benchmark` flag to print cache build timing and hit-rate statistics
+  - Added `-F`/`--fast-exif` flag: uses exifread for fast header-only EXIF extraction
+    on image/RAW files, falls back to hachoir for video/audio. Also adds HEIC/RAW support.
+- v2.0.2: Enhanced logging to include full source path for better traceability
 - v2.0.1: Enhanced session header in log file with clear version information and formatting
 - v2.0.0: MAJOR UPDATE - Intelligent master file selection system
   - Automatically determines best master file based on: shortest filename, oldest date, no duplicate keywords
