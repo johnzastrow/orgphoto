@@ -99,6 +99,9 @@ from hachoir.core import config
 # Suppress hachoir warnings to keep console output clean
 config.quiet = True
 
+# Suppress exifread warnings (e.g. "Webp file does not have exif data.")
+logging.getLogger("exifread").setLevel(logging.CRITICAL)
+
 # Script version information
 # Version History:
 # v1.3.x - Original comprehensive duplicate detection system
@@ -499,7 +502,7 @@ class TargetHashCache:
             if total % 500 == 0:
                 elapsed = time.monotonic() - self._build_start_time
                 print(
-                    f"\r  {total} files scanned ({reused} cached, {hashed} hashed) [{elapsed:.1f}s]",
+                    f"\r\033[K  {total} files scanned ({reused} cached, {hashed} hashed) [{elapsed:.1f}s]",
                     end="",
                     flush=True,
                 )
@@ -529,7 +532,7 @@ class TargetHashCache:
         total_files = reused + hashed
         # Clear progress line and print summary to console
         print(
-            f"\r  Hash cache ready: {total_files} files "
+            f"\r\033[K  Hash cache ready: {total_files} files "
             f"({reused} cached, {hashed} hashed) in {elapsed:.1f}s"
         )
         self.logger.info(
@@ -1427,8 +1430,8 @@ def recursive_walk(
                 total_files += 1
                 elapsed = time.monotonic() - walk_start
                 print(
-                    f"\r  [{elapsed:.1f}s] {total_files} scanned, {processed_files} processed: {filename[:40]}",
-                    end="                    ",
+                    f"\r\033[K  [{elapsed:.1f}s] {total_files} scanned, {processed_files} processed: {filename[:40]}",
+                    end="",
                     flush=True,
                 )
 
@@ -1455,7 +1458,7 @@ def recursive_walk(
     # Log final statistics
     elapsed = time.monotonic() - walk_start
     print(
-        f"\r  Done: {total_files} files scanned, {processed_files} processed in {elapsed:.1f}s"
+        f"\r\033[K  Done: {total_files} files scanned, {processed_files} processed in {elapsed:.1f}s"
     )
     logger.info(f"Total files matched: {total_files}, processed: {processed_files}")
 
