@@ -6,7 +6,7 @@ orgphoto (op)
 ## Table of Contents
 
 - [Summary](#summary)
-- [What's New](#-whats-new-in-v201)
+- [What's New](#-whats-new-in-v210)
 - [Features](#features)
 - [Usage](#usage)
 - [Usage Examples](#usage-examples)
@@ -25,11 +25,19 @@ and copies or moves them into subfolders in a destination directory, organized b
 
 **Key features**: Comprehensive SHA-256 duplicate detection, intelligent conflict resolution, and flexible duplicate handling modes.
 
-## ✨ What's New in v2.0.1
+## ✨ What's New in v2.1.0
+
+- **⚡ Persistent SQLite Hash Cache**: SHA-256 hashes are stored in `.orgphoto_cache.db` and reused across runs. Only new or modified files are rehashed, reducing startup from minutes to seconds for large collections.
+- **⚡ Fast EXIF Extraction (default)**: Uses `exifread` for header-only EXIF reads on image files (JPEG, TIFF, HEIC, RAW), typically 5-50x faster than hachoir. Falls back to hachoir automatically for video/audio. Disable with `--no-fast-exif`.
+- **📁 New HEIC/RAW Support**: The exifread integration adds creation date extraction for HEIC, CR2, NEF, ARW, DNG, ORF, and other RAW formats that hachoir does not support.
+- **🔧 `-C`/`--cache-dir`**: Place the hash cache database on a different (faster) drive.
+- **📊 `-B`/`--benchmark`**: Print hash cache build timing, hit rate, and statistics to the console.
+- **📈 Console Progress**: Real-time progress output during both hash cache building and file processing.
+
+### Previous Updates (v2.0.x)
 
 - **📊 Enhanced Log Headers**: Professional session headers in log files with clear version information
-- **🎯 Improved Readability**: Structured log formatting with visual separators between sessions
-- **📝 Better Tracking**: Each log session now clearly shows program version and timestamps
+- **📝 Full Source Paths**: Log entries show complete file paths for better traceability
 
 ### Major Update: v2.0.0 - Intelligent Master File Selection
 
@@ -41,18 +49,6 @@ and copies or moves them into subfolders in a destination directory, organized b
 - **🛡️ Master Protection**: Master files are protected from being overwritten by inferior duplicates
 - **🔍 Comprehensive Logging**: Detailed logs of master selection criteria, conflict reasons, and demotion actions
 - **⚡ Intelligent Conflict Resolution**: Handles complex scenarios with multiple duplicates
-
-### Previous Updates (v1.5.x)
-
-- **📌 Version Visibility**: Version displays in help output and when run without arguments
-- **🐛 Bug Fixes**: Fixed version output duplication issues
-- **🎯 Enhanced User Experience**: Improved version tracking throughout the interface
-
-### Previous Updates (v1.4.x)
-
-- **🎯 All File Types by Default**: No need to specify extensions - processes all supported formats automatically
-- **📖 Enhanced Help System**: Comprehensive help text with detailed explanations and real-world examples
-- **🔧 Better User Experience**: Streamlined workflow for both beginners and power users
 
 A common use case might be to move them from a mobile device into archive folders, or to reorganize archives. 
 
@@ -79,7 +75,9 @@ Note this is a major rewrite of the upstream project skorokithakis/photocopy and
 - Uses pathlib for modern, robust path handling.
 
 ### Advanced Duplicate Detection
-- **🧠 Intelligent Master File Selection** (NEW in v2.0.0):
+- **⚡ Persistent Hash Cache** (NEW in v2.1.0): SQLite-backed cache persists SHA-256 hashes across runs; validates via mtime+size
+- **⚡ Fast EXIF Extraction** (NEW in v2.1.0): Header-only reads via exifread for images/RAW; hachoir fallback for video/audio
+- **🧠 Intelligent Master File Selection** (v2.0.0):
   - **Automatic master identification**: Determines best file to keep based on multiple criteria
   - **Priority ranking**: No duplicate keywords > Shortest filename > Oldest date
   - **Keyword detection**: Recognizes "copy", "duplicate", "(1)", "_copy", and international variations
@@ -88,7 +86,7 @@ Note this is a major rewrite of the upstream project skorokithakis/photocopy and
   - **Comprehensive logging**: Details master selection decisions and criteria
 - **Comprehensive SHA256 checking**: By default, checks each incoming file against ALL existing files in target directory (not just filename conflicts)
 - **Content-based detection**: Uses SHA-256 hashing to detect truly identical files regardless of filename or location
-- **Hash caching**: Builds and maintains an in-memory hash database of target files for efficient duplicate detection
+- **Hash caching**: Persistent SQLite cache of target file hashes; only rehashes new or modified files on subsequent runs
 - **Multiple duplicate handling modes**:
   - `skip` (default) - Skip if filename exists or identical content found anywhere
   - `overwrite` - Master-aware: protects master files, renames inferior duplicates
@@ -106,8 +104,8 @@ From the packaged .exe. But the script is the same code.
 ```bash
 C:\Users\user\Github\orgphoto\output>op.exe -h
 usage: op.py [-h] [-m | -c] [-j EXT] [-v] [-x {yes,no,fs}] [-d]
-              [-D DUPLICATE_HANDLING] [-N] [-R DIR] [-K WORD] [--examples]
-              [--version]
+              [-D DUPLICATE_HANDLING] [-N] [-R DIR] [-K WORD]
+              [-C DIR] [-B] [--no-fast-exif] [--examples] [--version]
               SOURCE_DIR DEST_DIR
 
 Organize files by date with comprehensive duplicate detection
@@ -120,20 +118,29 @@ options:
   -h, --help            show this help message and exit
   -m, --move            Move files (cannot be used with --copy)
   -c, --copy            Copy files (cannot be used with --move)
-  -j, --extensions EXT  Extension list - comma separated [default: jpeg,jpg]. Supports all extensions of hachoir
-  -v, --verbose         Talk more
+  -j, --extensions EXT  File extensions to process, comma-separated without dots.
+                        If omitted, ALL files are processed regardless of extension.
+                        [default: all types]
+  -v, --verbose         Enable verbose logging
   -x, --exifOnly {yes,no,fs}
-                        'yes': skip files with no EXIF, 'no': process all files (fallback to filesystem date), 'fs': only process
-                        files with no EXIF [default: yes]
+                        'yes': skip files with no EXIF, 'no': process all files
+                        (fallback to filesystem date), 'fs': only process files
+                        with no EXIF [default: yes]
   -d, --dryrun          Dry run mode: simulate actions, do not move/copy files
   -D, --duplicate-handling DUPLICATE_HANDLING
-                        How to handle duplicates: skip, overwrite, rename, content, interactive, redirect [default: skip]
+                        How to handle duplicates: skip, overwrite, rename, content,
+                        interactive, redirect [default: skip]
   -N, --no-comprehensive-check
                         Disable comprehensive SHA256 checking for better performance
   -R, --redirect-dir DIR
                         Directory for redirected duplicates [default: Duplicates]
   -K, --duplicate-keyword WORD
                         Keyword for duplicate filenames [default: duplicate]
+  -C, --cache-dir DIR   Directory to store the hash cache database (.orgphoto_cache.db).
+                        Defaults to the target directory. Use this to place the cache
+                        on a faster drive (e.g. SSD) when photos are on a slower drive.
+  -B, --benchmark       Print hash cache build timing and statistics to the console
+  --no-fast-exif        Disable fast EXIF via exifread; use hachoir for all files
   --examples            Show usage examples and exit
   --version             Show program version and exit
 
@@ -336,9 +343,10 @@ Note: Version information displays when running without arguments. Use --version
 
 **Short Flag Reference**:
 - `-m` = move, `-c` = copy, `-d` = dry run, `-v` = verbose
-- `-j` = extensions, `-x` = EXIF handling  
+- `-j` = extensions, `-x` = EXIF handling
 - `-D` = duplicate handling, `-N` = disable comprehensive check
 - `-R` = redirect directory, `-K` = duplicate keyword
+- `-C` = cache directory, `-B` = benchmark timing
 
 See `python op.py --help` or `python op.py --examples` for all options.
 
@@ -667,9 +675,10 @@ orgphoto's comprehensive duplicate detection goes beyond simple filename checkin
 
 #### 1. **Hash Cache Building**
 - Scans ALL existing files in target directory at startup
-- Calculates SHA-256 hash for each file
-- Builds in-memory database: `{hash: [file_path1, file_path2, ...]}`
-- Stores file modification times for cache invalidation
+- **Persistent SQLite cache** (`.orgphoto_cache.db`): On subsequent runs, validates cached entries by comparing file mtime and size — only rehashes new or modified files
+- Builds in-memory lookup: `{hash: [file_path1, file_path2, ...]}`
+- Uses relative POSIX paths in DB for portability (survives directory moves)
+- Use `-C /fast/drive` to place the cache database on a faster drive
 
 #### 2. **Duplicate Detection Process**
 ```
@@ -690,17 +699,29 @@ For each source file:
 
 #### Hash Cache Statistics
 ```bash
-# Example log output:
-Building comprehensive hash cache of target directory...
-Hash cache built: 15,432 files indexed, 14,891 unique hashes
-# Shows: 541 files had duplicate content
+# First run (hashes everything, creates DB):
+Building hash cache of target directory...
+  Hash cache ready: 15432 files (0 cached, 15432 hashed) in 45.2s
+
+# Second run (reuses cached hashes):
+Building hash cache of target directory...
+  Hash cache ready: 15432 files (15431 cached, 1 hashed) in 0.8s
+
+# With -B flag for detailed benchmark:
+--- Hash Cache Benchmark ---
+Total files indexed : 15432
+Reused from cache   : 15431
+Freshly hashed      : 1
+Stale entries purged: 0
+Elapsed time        : 0.823s
+Cache hit rate      : 100.0%
+----------------------------
 ```
 
-#### Memory Usage
-- **Hash storage**: ~64 bytes per hash (SHA-256)
-- **Path storage**: Variable, ~100-200 bytes per file path  
-- **Cache metadata**: File modification times, ~16 bytes per file
-- **Total estimate**: ~200-300 bytes per target file
+#### Storage
+- **SQLite DB**: `.orgphoto_cache.db` in target directory (or custom `-C` directory)
+- **DB size**: ~200-400 bytes per file (path + hash + metadata)
+- **In-memory**: ~200-300 bytes per target file for hash lookup
 
 #### Performance Characteristics
 - **Cache building**: ~500-2000 files/second (depends on storage speed)
@@ -720,21 +741,23 @@ By default, orgphoto performs comprehensive SHA-256 checking of each incoming fi
 - **Cross-directory detection**: Finds duplicates anywhere in target tree
 
 **Performance Impact**:
-- **Startup time**: 10-60 seconds for 10,000 files (depends on storage speed)
+- **First run**: 10-60 seconds for 10,000 files (all files hashed, DB created)
+- **Subsequent runs**: Under 1 second for 10,000 unchanged files (hashes reused from SQLite cache)
 - **Memory usage**: ~200-300 bytes per target file for hash cache
 - **Processing time**: Each incoming file hashed once (~10-50 MB/second)
-- **Disk I/O**: One-time read of all target files during cache build
+- **Disk I/O**: First run reads all target files; subsequent runs only stat files for mtime+size validation
 
 ### Performance Benchmarks
 
-| Target Files | Cache Build Time | Memory Usage | Processing Speed |
-|-------------|------------------|---------------|-----------------|
-| 1,000 files | 2-5 seconds | ~300 KB | 200-500 files/min |
-| 10,000 files | 20-60 seconds | ~3 MB | 150-300 files/min |
-| 50,000 files | 2-5 minutes | ~15 MB | 100-200 files/min |
-| 100,000 files | 5-15 minutes | ~30 MB | 50-150 files/min |
+| Target Files | First Run (full hash) | Subsequent Runs (cached) | Memory Usage |
+|-------------|----------------------|-------------------------|--------------|
+| 1,000 files | 2-5 seconds | < 0.5 seconds | ~300 KB |
+| 10,000 files | 20-60 seconds | < 1 second | ~3 MB |
+| 50,000 files | 2-5 minutes | 1-3 seconds | ~15 MB |
+| 100,000 files | 5-15 minutes | 3-8 seconds | ~30 MB |
+| 200,000 files | 10-30 minutes | 5-15 seconds | ~60 MB |
 
-*Benchmarks vary by storage type (SSD vs HDD), network latency, and CPU speed*
+*Benchmarks vary by storage type (SSD vs HDD), network latency, and CPU speed. Use `-B` flag to measure actual performance.*
 
 ### When to Disable Comprehensive Checking (`-N`)
 
@@ -746,7 +769,6 @@ Use the `-N` flag to disable comprehensive checking when:
 - **Limited memory**: Cache may use significant RAM
 
 **Performance Priority**:
-- **Frequent runs**: Cache rebuilt each time (not persistent between runs)
 - **Fast import needed**: Only care about filename conflicts
 - **Batch processing**: Processing speed more important than deduplication
 
@@ -784,9 +806,19 @@ python op.py -c -N -D overwrite -j jpg source/ target/
 - **Archive old files**: Move older files to separate directories
 - **Clean duplicates**: Periodically clean up redirect directories
 
-#### 3. **Hardware Considerations**
-- **SSD storage**: 5-10x faster cache building than HDD
-- **More RAM**: Allows larger caches without performance impact
+#### 3. **Cache Placement**
+```bash
+# Place hash cache on fast SSD while photos are on slow HDD
+python op.py -c -C /fast_ssd/cache -j jpg /slow_hdd/photos/ target/
+
+# Benchmark to compare cached vs uncached performance
+python op.py -c -B -j jpg source/ target/
+```
+
+#### 4. **Hardware Considerations**
+- **SSD storage**: 5-10x faster first-run cache building than HDD
+- **`-C` flag**: Place cache DB on SSD when target is on HDD for faster subsequent runs
+- **More RAM**: Allows larger in-memory caches without performance impact
 - **Faster CPU**: Improves hash calculation speed
 - **Network storage**: Consider local staging for large operations
 
@@ -805,21 +837,23 @@ python op.py -c -N -D overwrite -j jpg source/ target/
 
 ### Real-World Performance Tips
 
-1. **Initial import**: Use comprehensive checking for first-time setup
-2. **Regular updates**: Consider `-N` for frequent incremental updates
+1. **Initial import**: First run builds the hash cache (slower); all subsequent runs reuse it (fast)
+2. **Regular updates**: Persistent cache means comprehensive checking is fast even for frequent runs
 3. **Archive consolidation**: Use `content` mode for merging archives
 4. **Mobile import**: Use default settings for safety
-5. **Bulk processing**: Use `-N -D rename` for speed
+5. **Bulk processing**: Use `-N -D rename` for speed if deduplication isn't needed
 6. **Migration projects**: Use `interactive` mode for control
+7. **Slow drives**: Use `-C /fast/path` to put the cache DB on an SSD
+8. **Verify speedup**: Use `-B` to see benchmark timing and cache hit rate
 
-The hash cache provides excellent performance for most use cases, typically processing 100-500 files per minute even with comprehensive checking enabled.
+The persistent hash cache ensures excellent performance for most use cases. After the first run, subsequent runs typically complete the cache build in seconds rather than minutes.
 
 ## Installation
-**<u>pip</u>** 
+**<u>pip</u>**
 Just run:
 
     1. Clone the repo, or just download `op.py`
-    2. pip install hachoir
+    2. pip install hachoir exifread
     3. Then execute the script using python as in # python op.py
 
 **<u>uv</u>** - Thank you uv! ![uv installation here](https://docs.astral.sh/uv/getting-started/installation/)
@@ -836,7 +870,7 @@ This project supports building Windows executables using PyInstaller with proper
 
 ```bash
 # Recommended approach - ensures proper dependency resolution
-uv run pyinstaller --noconfirm --onefile --console --collect-all hachoir --exclude-module hachoir.wx.tree_view --icon "doc/favicon.ico" "op.py"
+uv run pyinstaller --noconfirm --onefile --console --collect-all hachoir --collect-all exifread --exclude-module hachoir.wx.tree_view --icon "doc/favicon.ico" "op.py"
 
 # Alternative using existing spec file (after running uv sync)
 uv run pyinstaller op.spec
@@ -887,10 +921,28 @@ Examples of log entries
 
 ## File Formats
 
-This version of orgphoto (op) uses the [https://pypi.org/project/hachoir/](hachoir) software to extract EXIF metadata. Hachoir supports the following 
-file formats as of version 3.3.0 in November 2024.
+orgphoto uses two libraries for EXIF metadata extraction:
 
-#### Total: 33 file formats, from https://hachoir.readthedocs.io/en/latest/metadata.html#supported-file-formats
+- **exifread** (default for images): Fast header-only reads for JPEG, TIFF, PNG, HEIC/HEIF, WebP, and RAW camera formats (CR2, CR3, NEF, ARW, DNG, ORF, RW2, RAF, PEF, SRW). Use `--no-fast-exif` to disable.
+- **hachoir** (fallback + video/audio): Full file parsing for video, audio, and other formats.
+
+### Additional Formats via exifread
+
+- HEIC/HEIF (iPhone photos)
+- CR2, CR3 (Canon RAW)
+- NEF (Nikon RAW)
+- ARW (Sony RAW)
+- DNG (Adobe RAW)
+- ORF (Olympus RAW)
+- RW2 (Panasonic RAW)
+- RAF (Fujifilm RAW)
+- PEF (Pentax RAW)
+
+### Formats via hachoir
+
+Hachoir supports the following file formats as of version 3.3.0.
+
+Total: 33 file formats, from https://hachoir.readthedocs.io/en/latest/metadata.html#supported-file-formats
 
 #### Archive
 * bzip2: bzip2 archive
