@@ -915,9 +915,29 @@ Just run:
 
 ## Building Windows .exe
 
-### Recommended Build Method (using uv)
+### CI: GitHub Actions (recommended — zero local setup)
 
-This project supports building Windows executables using PyInstaller with proper dependency resolution:
+`.github/workflows/build.yml` builds the Windows `.exe` automatically on every
+push to `main`, every PR, and every `v*` tag:
+
+- **Tests** run on Linux (full suite) and Windows (catches Windows-specific issues).
+- **PyInstaller** builds `op.exe` on `windows-latest`.
+- The `.exe` is uploaded as a workflow artifact and retained for 30 days.
+- Tagged pushes (`git tag v2.2.1 && git push --tags`) also publish a GitHub
+  Release with the `.exe` attached.
+
+To grab a fresh build:
+
+```bash
+# Via the GitHub UI: Actions → latest "Build" run → Artifacts → op-windows-<sha>
+# Or via gh CLI:
+gh run download --name "op-windows-$(git rev-parse HEAD)" --dir .
+```
+
+### Local Build (Windows host required)
+
+PyInstaller does not cross-compile — building the Windows `.exe` locally
+requires a Windows machine (or a Windows VM/CI runner). On Windows:
 
 ```bash
 # Recommended approach - ensures proper dependency resolution

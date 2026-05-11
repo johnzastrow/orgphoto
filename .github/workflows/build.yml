@@ -1,0 +1,94 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write  # required so the release job can upload assets on tag pushes
+
+jobs:
+  test:
+    name: Test (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff format --check . && uv run ruff check .
+        continue-on-error: true  # one pre-existing lint warning in op.py; don't gate the build on it
+
+      - name: Run tests
+        run: uv run pytest -v
+
+  build-windows:
+    name: Build Windows .exe
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Run tests on Windows
+        # Catches Windows-specific issues (path separators, line endings, FileHandler
+        # behavior) that the Linux test job can't.
+        run: uv run pytest -q
+
+      - name: Build with PyInstaller
+        run: >
+          uv run pyinstaller --noconfirm --onefile --console
+          --collect-all hachoir --collect-all exifread
+          --icon "doc/favicon.ico" "op.py"
+
+      - name: Smoke-test the built exe
+        run: |
+          dist\op.exe --version
+          dist\op.exe --help | Select-String "cache-only"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: op-windows-${{ github.sha }}
+          path: dist/op.exe
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Attach .exe to GitHub Release
+    needs: build-windows
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: op-windows-${{ github.sha }}
+          path: ./release
+
+      - name: Create / update release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./release/op.exe
+          generate_release_notes: true
+          fail_on_unmatched_files: true

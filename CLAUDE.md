@@ -60,9 +60,19 @@ pip install hachoir auto-py-to-exe
 ```
 
 ### Building Windows executable
+
+**Preferred: GitHub Actions (`.github/workflows/build.yml`)**
+Every push to `main`, every PR, and every `v*` tag triggers the `Build` workflow,
+which runs tests on Linux + Windows and produces `op.exe` as a downloadable
+artifact. Tagged pushes also attach the `.exe` to a GitHub Release automatically.
+Grab the artifact from the workflow run page, or `gh run download <run-id>`.
+
+For a one-off local build (must run on a Windows host — PyInstaller does not
+cross-compile):
+
 ```bash
 # Recommended approach using uv (ensures proper dependency resolution)
-uv run pyinstaller --noconfirm --onefile --console --collect-all hachoir --icon "doc/favicon.ico" "op.py"
+uv run pyinstaller --noconfirm --onefile --console --collect-all hachoir --collect-all exifread --icon "doc/favicon.ico" "op.py"
 
 # Alternative using existing spec file (after running uv sync)
 uv run pyinstaller op.spec
