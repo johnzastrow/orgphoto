@@ -54,6 +54,39 @@ Cache hit rate      : 100.0%
 ----------------------------
 ```
 
+### Measured throughput (real-world)
+
+Datapoints from actual `-O -B` runs to help calibrate the estimates table:
+
+**NVMe SSD, 2,623-file library** (`C:\DupesfromOP`, mixed images, Windows):
+
+```
+# First run — full hash
+> op -O -B C:\DupesfromOP
+  Hash cache ready: 2623 files (0 cached, 2623 hashed) in 51.5s
+  → ~51 files/sec (cold hash)
+
+# Second run — warm cache
+> op -O -B C:\DupesfromOP
+  Hash cache ready: 2623 files (2622 cached, 1 hashed) in 0.4s
+  Cache hit rate      : 100.0%
+  → ~6,400 files/sec (stat-only, no content reads)
+```
+
+**Spinning HDD, 200k-file library** (`E:\Pictures`, mid-scan progress line):
+
+```
+> op -O -B E:\Pictures
+Building hash cache of target directory...
+  6000 files scanned (0 cached, 6000 hashed) [275.1s]
+  → ~22 files/sec (cold hash)
+```
+
+Takeaways:
+- **HDD is ~2.3× slower than NVMe for cold hashing** (~22 vs ~51 files/sec on the test boxes above). Extrapolated, a 200k-file first build runs ~2.5 hours on HDD vs ~1 hour on NVMe.
+- **Warm-cache walks are ~125× faster than cold builds on NVMe.** Once the cache is hot, throughput is dominated by directory traversal and `stat()` rather than reading file contents, so even huge trees refresh in seconds.
+- On warm-cache NVMe runs you may see `1 freshly hashed` — that's an unrelated file whose mtime drifted between runs, not the cache DB itself (which is already excluded from the walk).
+
 ### Storage cost
 
 - `.orgphoto_cache.db`: ~200-400 bytes per file (relative path + hash + size + mtime). 200k files ≈ 40-80 MB DB.
