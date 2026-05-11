@@ -1135,7 +1135,28 @@ class TestSetupLoggerHandlerLeak(unittest.TestCase):
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, self.tmp)
+        # Register cleanups in reverse-of-execution order (addCleanup is LIFO):
+        # rmtree runs LAST so it can succeed only after the handler-close runs.
+        # ignore_errors guards against any residual Windows lock we missed.
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.addCleanup(self._close_op_handlers)
+
+    def _close_op_handlers(self):
+        """Detach any FileHandlers from the 'op' logger so the tempdir can be removed."""
+        logger = logging.getLogger("op")
+        for h in list(logger.handlers):
+            try:
+                h.close()
+            except Exception:
+                pass
+            logger.removeHandler(h)
+
+    @staticmethod
+    def _norm(p: Path) -> Path:
+        """Normalize a path so Windows 8.3 short names compare equal to long names."""
+        # Path.resolve() expands 8.3 names IF the target exists, which it does
+        # here (set_up_logging just touched events.log).
+        return p.resolve()
 
     def test_second_call_replaces_stale_handler(self):
         first_dest = self.tmp / "first"
@@ -1144,34 +1165,28 @@ class TestSetupLoggerHandlerLeak(unittest.TestCase):
         second_dest.mkdir()
 
         # First call attaches a FileHandler pointing at first_dest/events.log.
-        # We do NOT shutil.rmtree(first_dest) here — Windows refuses to delete
-        # an open file. The fix being verified is purely about whether the
-        # second set_up_logging() call swaps the handler; we can check that
-        # without simulating the tempdir teardown.
+        # We deliberately don't rmtree(first_dest) here — Windows refuses to
+        # delete an open file. The fix being verified is purely whether the
+        # second set_up_logging() call swaps the handler.
         first_logger = op.set_up_logging(first_dest, verbose=False)
         self.assertEqual(len(first_logger.handlers), 1)
-        first_handler = first_logger.handlers[0]
         self.assertEqual(
-            Path(first_handler.baseFilename), (first_dest / "events.log").resolve()
+            self._norm(Path(first_logger.handlers[0].baseFilename)),
+            self._norm(first_dest / "events.log"),
         )
 
         # Second call must close the old handler and attach a new one pointing
         # at second_dest. Before v2.1.1 this left the first handler attached.
         second_logger = op.set_up_logging(second_dest, verbose=False)
         self.assertEqual(len(second_logger.handlers), 1)
-        second_handler = second_logger.handlers[0]
         self.assertEqual(
-            Path(second_handler.baseFilename), (second_dest / "events.log").resolve()
+            self._norm(Path(second_logger.handlers[0].baseFilename)),
+            self._norm(second_dest / "events.log"),
         )
 
         # It must be able to emit without FileNotFoundError, even though the
-        # first_dest log handle had been pointing elsewhere.
+        # first_dest log handle had been swapped out.
         second_logger.info("regression check")
-
-        # Tear down explicitly so Windows can clean the tempdir.
-        for h in list(second_logger.handlers):
-            h.close()
-            second_logger.removeHandler(h)
 
 
 if __name__ == "__main__":
