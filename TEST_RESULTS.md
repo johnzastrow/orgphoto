@@ -6,7 +6,7 @@ The test suite has been substantially expanded since the initial 15-test snapsho
 
 ## Current Status
 
-**71 passing / 0 failing** (`uv run pytest --tb=no -q`)
+**63 passing / 0 failing** (`uv run pytest --tb=no -q`) — also runs on Linux and Windows in CI via `.github/workflows/build.yml`.
 
 ## Test Files
 
@@ -37,8 +37,6 @@ Organized by feature class:
 - `TestIncrementalCommit` (v2.2.1) — injects a fault mid-build to confirm batched commits actually flush to SQLite, and that a subsequent build reuses what was persisted
 - `TestSetupLoggerHandlerLeak` (v2.1.1) — regression check that `set_up_logging()` replaces stale FileHandlers across calls
 
-### `test_simple.py` and `test_integration.py`
-Earlier test scaffolding from the v1.x era. Kept for now but mostly superseded by the categorized suites above.
 
 ## Running the suite
 
@@ -51,7 +49,8 @@ uv run pytest test_v210.py::TestCacheOnlyMode -v  # one class
 
 ## History
 
+- **v2.2.2 (2026-05-11)**: 63 tests / 0 failures. Removed superseded v1.x scaffolding (`test_simple.py`, `test_integration.py`, `run_tests.py`) — their coverage was already duplicated in `test_op.py` and `test_v210.py`.
+- **v2.2.1 (2026-05-11)**: 71 tests / 0 failures. Added `TestIncrementalCommit` regression test for crash-safe cache builds.
 - **v2.2.0 (2026-05-11)**: 70 tests / 0 failures. Added `TestCacheOnlyMode` (8 tests) and `TestNormalModeRequiresBothPositionals`.
 - **v2.1.1 (2026-05-11)**: 61 tests / 0 failures. Fixed `set_up_logging()` handler leak; removed two stale v1.x duplicate-mode tests in `test_op.py` that the v2.0 master-selection feature had superseded; added `TestSetupLoggerHandlerLeak` regression test.
 - **v2.1.0 (2026-02-08)**: First comprehensive v2.1.0 test coverage in `test_v210.py`.
-- **Initial snapshot (Feb 2026)**: 15 tests across `test_simple.py` and `test_integration.py`.

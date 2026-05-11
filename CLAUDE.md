@@ -8,10 +8,9 @@ orgphoto (op) is a Python command-line tool that organizes photos and videos by 
 
 ## Key Architecture
 
-- **Main executable**: `op.py` - The primary CLI application with full functionality
-- **Entry point**: `main.py` - Simple entry point that imports and runs the main application
-- **Dependencies**: Uses `hachoir` for metadata extraction, `pathlib` for file operations
-- **Build system**: Uses `uv` for dependency management and PyInstaller for Windows executable compilation
+- **Main executable**: `op.py` - The primary CLI application (single-file).
+- **Dependencies**: `hachoir` (file-format-agnostic metadata), `exifread` (fast EXIF for images/RAW), `pathlib` (file operations).
+- **Build system**: `uv` for dependency management. PyInstaller produces the Windows `.exe`; the canonical build runs via `.github/workflows/build.yml` on every push, and tagged pushes auto-publish a GitHub Release.
 
 ## Common Commands
 
@@ -20,11 +19,8 @@ orgphoto (op) is a Python command-line tool that organizes photos and videos by 
 # Using uv (recommended - handles dependencies automatically)
 uv run op.py [options] SOURCE_DIR DEST_DIR
 
-# Using python directly (requires hachoir installed)  
+# Using python directly (requires hachoir + exifread installed)
 python op.py [options] SOURCE_DIR DEST_DIR
-
-# From main entry point
-uv run main.py  # (currently just prints hello message)
 
 # Examples with short flags:
 uv run op.py -c -D content -j jpg source/ target/        # Content-based duplicates
@@ -71,18 +67,11 @@ For a one-off local build (must run on a Windows host — PyInstaller does not
 cross-compile):
 
 ```bash
-# Recommended approach using uv (ensures proper dependency resolution)
+# Recommended (uv ensures correct dependency resolution)
 uv run pyinstaller --noconfirm --onefile --console --collect-all hachoir --collect-all exifread --icon "doc/favicon.ico" "op.py"
 
-# Alternative using existing spec file (after running uv sync)
+# Alternative using the existing spec file (after running uv sync)
 uv run pyinstaller op.spec
-
-# Legacy approaches (may fail with dependency issues)
-# Using auto-py-to-exe with existing config
-auto-py-to-exe op/pyinstallerconfig.json
-
-# Manual PyInstaller command (not recommended - missing dependencies)
-pyinstaller --noconfirm --onefile --console --icon "doc/favicon.ico" "op.py"
 ```
 
 **Why use `uv run pyinstaller`?**
@@ -142,11 +131,13 @@ uv run op.py -m -D interactive -j jpg source/ target/  # User can choose redirec
 
 ## File Organization
 
-- `op.py` - Main application logic (CLI parsing, file processing, EXIF extraction)
-- `op/op.spec` - PyInstaller specification file (legacy, references old filename)
-- `op/pyinstallerconfig.json` - auto-py-to-exe configuration for building executable
-- `testing/` - Contains test directories with sample photos for validation
-- `doc/` - Documentation assets (logos, screenshots)
+- `op.py` - Main application (CLI parsing, file processing, EXIF extraction, cache)
+- `op.spec` - PyInstaller specification file for the Windows build
+- `test_op.py`, `test_v210.py` - pytest test suites (63 tests as of v2.2.2)
+- `.github/workflows/build.yml` - CI: tests on Linux + Windows, builds .exe, attaches to GitHub Release on tag push
+- `docs/` - Topic deep-dives (usage, performance, duplicate handling, etc.)
+- `testing/` - Sample photo fixtures for manual / exploratory testing
+- `doc/` - Image assets (logo, favicon, log screenshot)
 
 ## VERSION TRACKING REQUIREMENT - CRITICAL REMINDER FOR CLAUDE
 
