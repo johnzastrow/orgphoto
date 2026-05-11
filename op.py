@@ -129,8 +129,12 @@ logging.getLogger("exifread").setLevel(logging.CRITICAL)
 #          Fast EXIF via exifread now default for image/RAW files (JPEG, HEIC, CR2, NEF,
 #          DNG, etc.); falls back to hachoir for video/audio. Use --no-fast-exif to disable.
 #          Adds HEIC/RAW format support that hachoir lacks.
-__version__ = "2.1.0"
-myversion = f"v. {__version__} 2026-02-08"
+# v2.1.1 - Fix logger handler leak: setup_logger() now removes stale FileHandlers from
+#          prior invocations before attaching a new one. Previously, running multiple
+#          jobs in the same Python process (or from tests) left handlers pointing at
+#          deleted log files, causing FileNotFoundError on subsequent log writes.
+__version__ = "2.1.1"
+myversion = f"v. {__version__} 2026-05-11"
 
 
 def calculate_file_hash(file_path: Path, algorithm: str = "sha256") -> str:
@@ -714,9 +718,12 @@ def set_up_logging(destination_dir: Path, verbose: bool):
     formatter = logging.Formatter("%(message)s")
     ch.setFormatter(formatter)
 
-    # Add the handler to the logger if it doesn't already have handlers
-    if not logger.handlers:
-        logger.addHandler(ch)
+    # Remove any handlers from a previous invocation — their target log file
+    # may have been moved or deleted, which would cause emit() to fail.
+    for old in list(logger.handlers):
+        old.close()
+        logger.removeHandler(old)
+    logger.addHandler(ch)
 
     return logger
 
