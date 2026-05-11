@@ -1050,6 +1050,81 @@ class TestNormalModeRequiresBothPositionals(unittest.TestCase):
         self.assertIn("SOURCE_DIR and DEST_DIR are required", mock_err.getvalue())
 
 
+class TestIncrementalCommit(unittest.TestCase):
+    """v2.2.1: cache build commits incrementally so crashes don't waste work."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.target = self.tmp / "target"
+        self.target.mkdir()
+        self.logger = _get_test_logger()
+
+    def _count_db_rows(self):
+        """Return how many rows are currently persisted in the cache DB."""
+        db_path = self.target / ".orgphoto_cache.db"
+        if not db_path.exists():
+            return 0
+        conn = sqlite3.connect(str(db_path))
+        try:
+            row = conn.execute("SELECT COUNT(*) FROM file_hashes").fetchone()
+            return row[0]
+        finally:
+            conn.close()
+
+    def test_crash_mid_build_preserves_committed_batches(self):
+        """Simulate a crash partway through; the next run resumes from where it left off.
+
+        Strategy: temporarily shrink _COMMIT_BATCH_SIZE so a small fixture
+        triggers multiple flushes, then patch calculate_file_hash to raise
+        partway through. Confirm:
+          1. The DB exists and contains at least one batch's worth of rows.
+          2. A subsequent normal run reuses those rows (no rehashing).
+        """
+        # Create 25 files (with batch_size=5, that's 5 batches if all hashed)
+        for i in range(25):
+            _make_file(self.target / f"file_{i:03d}.bin", f"content-{i}".encode())
+
+        # Shrink batch size for this test; restore afterwards.
+        original_batch = op.TargetHashCache._COMMIT_BATCH_SIZE
+        op.TargetHashCache._COMMIT_BATCH_SIZE = 5
+        self.addCleanup(
+            lambda: setattr(op.TargetHashCache, "_COMMIT_BATCH_SIZE", original_batch)
+        )
+
+        real_hash = op.calculate_file_hash
+        call_count = {"n": 0}
+
+        def hashing_that_crashes(path, algorithm="sha256"):
+            call_count["n"] += 1
+            # Allow ~2 batches' worth of hashes through, then crash.
+            if call_count["n"] > 12:
+                raise RuntimeError("simulated crash mid-build")
+            return real_hash(path, algorithm)
+
+        with patch("op.calculate_file_hash", side_effect=hashing_that_crashes):
+            with self.assertRaises(RuntimeError):
+                op.TargetHashCache(self.target, self.logger)
+
+        # At least the first 2 batches (10 rows) should have made it to disk.
+        rows_after_crash = self._count_db_rows()
+        self.assertGreaterEqual(
+            rows_after_crash,
+            10,
+            f"Expected >= 10 rows persisted, got {rows_after_crash}. "
+            "Means batched commits aren't actually flushing.",
+        )
+
+        # Second run with no crash: should reuse what was persisted and only
+        # hash the remainder.
+        cache = op.TargetHashCache(self.target, self.logger)
+        stats = cache.get_build_stats()
+        self.assertEqual(stats["reused"], rows_after_crash)
+        self.assertEqual(stats["hashed"], 25 - rows_after_crash)
+        self.assertEqual(stats["total_files"], 25)
+        cache.close()
+
+
 class TestSetupLoggerHandlerLeak(unittest.TestCase):
     """Regression: set_up_logging must not retain stale FileHandlers across calls.
 

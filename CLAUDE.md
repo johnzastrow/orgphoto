@@ -150,9 +150,16 @@ uv run op.py -m -D interactive -j jpg source/ target/  # User can choose redirec
    - MINOR: New features, significant enhancements (like new default behavior)
    - PATCH: Bug fixes, minor improvements, documentation updates
 
-**Current version: 2.2.0** (as of 2026-05-11)
+**Current version: 2.2.1** (as of 2026-05-11)
 
 **Recent version history:**
+- v2.2.1: Cache build now commits to SQLite incrementally (every 1000
+  freshly-hashed files) instead of buffering everything in memory until the
+  walk completes. A crash or kill during a multi-hour build on a 200k-file
+  tree now loses at most ~1000 files of work; the next run resumes from
+  where it left off via the existing mtime+size cache-hit logic. Stale
+  deletions still happen once at the end of the walk (they require the full
+  walk to determine what's actually gone).
 - v2.2.0: Added `-O`/`--cache-only` mode: build or refresh the hash cache for a
   target directory without copying or moving any files. Pass the target as the
   single positional argument. Intended to be scheduled (cron / Task Scheduler)

@@ -6,7 +6,7 @@ The test suite has been substantially expanded since the initial 15-test snapsho
 
 ## Current Status
 
-**70 passing / 0 failing** (`uv run pytest --tb=no -q`)
+**71 passing / 0 failing** (`uv run pytest --tb=no -q`)
 
 ## Test Files
 
@@ -34,6 +34,7 @@ Organized by feature class:
 - `TestIntegrationFixed` — copy / move / dry-run / rename / redirect against v2.0 master-selection
 - `TestCacheOnlyMode` (v2.2.0) — `-O` builds DB and exits; second run reuses; `-C` honored; rejects `-c`/`-m`/`-d`/`-N`; requires a target directory; warns and uses DEST_DIR when both positionals are supplied; nonexistent target errors out
 - `TestNormalModeRequiresBothPositionals` — without `-O`, both SOURCE_DIR and DEST_DIR are required
+- `TestIncrementalCommit` (v2.2.1) — injects a fault mid-build to confirm batched commits actually flush to SQLite, and that a subsequent build reuses what was persisted
 - `TestSetupLoggerHandlerLeak` (v2.1.1) — regression check that `set_up_logging()` replaces stale FileHandlers across calls
 
 ### `test_simple.py` and `test_integration.py`

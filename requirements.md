@@ -4,8 +4,27 @@
 
 ● Summary
 
-  Added a standalone hash-cache refresh mode and fixed a latent logger bug
-  surfaced while extending the test suite.
+  Added a standalone hash-cache refresh mode, fixed a latent logger bug
+  surfaced while extending the test suite, and made the cache build
+  crash-safe.
+
+  Version 2.2.1 - Incremental Cache Commits:
+
+  1. _build_cache() now flushes inserts to SQLite every 1000 freshly-hashed
+     files instead of buffering everything in memory until the walk
+     completes.
+  2. A crash, kill, or power loss during a multi-hour build on a 200k-file
+     tree now loses at most ~1000 files of work; the next run resumes from
+     where it left off via the existing mtime+size cache-hit logic.
+  3. Stale deletions still happen once after the full walk — they can only
+     run safely after we've seen everything on disk, and they're cheap
+     compared to the hash work.
+  4. New regression test (TestIncrementalCommit) shrinks the batch size,
+     injects a fault into calculate_file_hash partway through, and verifies
+     that a subsequent build reuses what was persisted.
+  5. The new class constant TargetHashCache._COMMIT_BATCH_SIZE = 1000 gates
+     the flush cadence. Adds ~200 commits on a 200k-file build, ~1s of
+     overhead — negligible vs. the hours of hashing it protects.
 
   Version 2.2.0 - Cache-Only Mode:
 

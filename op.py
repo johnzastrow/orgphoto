@@ -137,7 +137,12 @@ logging.getLogger("exifread").setLevel(logging.CRITICAL)
 #          target directory and exit, without copying or moving any files. Intended
 #          to be scheduled (cron / Task Scheduler) so subsequent copy jobs find the
 #          cache already warm. Useful for stable backup trees with 100k+ files.
-__version__ = "2.2.0"
+# v2.2.1 - Cache build now commits to SQLite incrementally (every 1000 freshly-hashed
+#          files) instead of buffering everything in memory until the end of the walk.
+#          A crash or kill during a multi-hour build on a 200k-file tree now loses at
+#          most ~1000 files of work; the next run resumes from where it left off via
+#          the existing mtime+size cache-hit logic.
+__version__ = "2.2.1"
 myversion = f"v. {__version__} 2026-05-11"
 
 
@@ -350,6 +355,11 @@ class TargetHashCache:
     _DB_FILENAME = ".orgphoto_cache.db"
     # Files to skip when scanning the target directory
     _SKIP_SUFFIXES = {".db", ".db-wal", ".db-shm"}
+    # Commit accumulated hashes to SQLite every N freshly-hashed files so that
+    # a crash mid-build only loses up to ~N files of work. With 200k-file
+    # backup trees the build can take hours; without batching, an interrupt
+    # would force a full rebuild on the next run.
+    _COMMIT_BATCH_SIZE = 1000
 
     def __init__(self, target_dir: Path, logger, cache_dir: Path = None):
         self.target_dir = target_dir
@@ -440,6 +450,31 @@ class TargetHashCache:
             )
             self.conn = None
 
+    def _flush_inserts(self, rows):
+        """Commit a batch of (rel_path, hash, size, mtime) rows to SQLite.
+
+        Errors are logged but not raised — a failed batch should not abort the
+        whole build. The in-memory cache state still reflects the hashes, so
+        duplicate detection works for the current run; the next run will just
+        rehash those files.
+        """
+        if self.conn is None or not rows:
+            return
+        try:
+            self.conn.executemany(
+                "INSERT OR REPLACE INTO file_hashes "
+                "(file_path, file_hash, file_size, file_mtime) "
+                "VALUES (?, ?, ?, ?)",
+                rows,
+            )
+            self.conn.commit()
+        except Exception as e:
+            self.logger.warning(f"Failed to persist hash batch ({len(rows)} rows): {e}")
+            try:
+                self.conn.rollback()
+            except Exception:
+                pass
+
     def _build_cache(self):
         """Build the hash cache by scanning target directory and reusing persisted hashes."""
         if not self.target_dir.exists():
@@ -460,7 +495,7 @@ class TargetHashCache:
         reused = 0
         hashed = 0
         stale = set(db_rows.keys())  # will remove keys we see on disk
-        inserts = []  # (rel_path, hash, size, mtime)
+        pending = []  # (rel_path, hash, size, mtime) awaiting flush to SQLite
 
         for file_path in self.target_dir.rglob("*"):
             if not file_path.is_file():
@@ -498,7 +533,12 @@ class TargetHashCache:
                 if not file_hash:
                     continue
                 hashed += 1
-                inserts.append((rel_path, file_hash, file_size, file_mtime))
+                pending.append((rel_path, file_hash, file_size, file_mtime))
+
+                # Flush in batches so a mid-build crash loses at most one batch.
+                if len(pending) >= self._COMMIT_BATCH_SIZE:
+                    self._flush_inserts(pending)
+                    pending.clear()
 
             # Populate in-memory structures
             if file_hash not in self.hash_to_files:
@@ -516,25 +556,22 @@ class TargetHashCache:
                 )
                 self.logger.debug(f"Cached {total} file hashes...")
 
-        # Persist changes to DB
-        if self.conn is not None:
+        # Flush any remaining inserts and remove stale entries. Stale removal
+        # has to wait until the full walk is done — we can't know what's gone
+        # until we've seen everything on disk.
+        if pending:
+            self._flush_inserts(pending)
+            pending.clear()
+        if self.conn is not None and stale:
             try:
                 cur = self.conn.cursor()
-                # Remove stale entries
                 for rel_path in stale:
                     cur.execute(
                         "DELETE FROM file_hashes WHERE file_path=?", (rel_path,)
                     )
-                # Insert/update new hashes
-                cur.executemany(
-                    "INSERT OR REPLACE INTO file_hashes "
-                    "(file_path, file_hash, file_size, file_mtime) "
-                    "VALUES (?, ?, ?, ?)",
-                    inserts,
-                )
                 self.conn.commit()
             except Exception as e:
-                self.logger.warning(f"Failed to persist hash cache: {e}")
+                self.logger.warning(f"Failed to purge stale cache entries: {e}")
 
         elapsed = time.monotonic() - self._build_start_time
         total_files = reused + hashed

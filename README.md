@@ -6,7 +6,7 @@ orgphoto (op)
 ## Table of Contents
 
 - [Summary](#summary)
-- [What's New](#-whats-new-in-v220)
+- [What's New](#-whats-new-in-v22x)
 - [Features](#features)
 - [Usage](#usage)
 - [Usage Examples](#usage-examples)
@@ -25,9 +25,10 @@ and copies or moves them into subfolders in a destination directory, organized b
 
 **Key features**: Comprehensive SHA-256 duplicate detection, intelligent conflict resolution, and flexible duplicate handling modes.
 
-## ✨ What's New in v2.2.0
+## ✨ What's New in v2.2.x
 
-- **🗓️ `-O`/`--cache-only` mode**: Build or refresh the hash cache for a target directory **without copying or moving any files**. Designed to be scheduled (cron / Task Scheduler) so subsequent copy jobs find the cache already warm. Pass the target directory as the single positional argument.
+- **🛡️ v2.2.1 — Crash-safe incremental commits**: The cache build now writes to the SQLite DB every 1000 freshly-hashed files instead of buffering everything in memory until the walk completes. If a multi-hour build is interrupted (Ctrl-C, power loss, OOM kill), the next run resumes from where it left off — only the last partial batch is lost. Critical for the 200k+ file scenarios that motivated `--cache-only` in the first place.
+- **🗓️ v2.2.0 — `-O`/`--cache-only` mode**: Build or refresh the hash cache for a target directory **without copying or moving any files**. Designed to be scheduled (cron / Task Scheduler) so subsequent copy jobs find the cache already warm. Pass the target directory as the single positional argument.
   ```bash
   uv run op.py -O -B /backups/photos
   ```
