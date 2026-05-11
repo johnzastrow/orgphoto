@@ -151,9 +151,19 @@ uv run op.py -m -D interactive -j jpg source/ target/  # User can choose redirec
    - MINOR: New features, significant enhancements (like new default behavior)
    - PATCH: Bug fixes, minor improvements, documentation updates
 
-**Current version: 2.2.1** (as of 2026-05-11)
+**Current version: 2.2.2** (as of 2026-05-11)
 
 **Recent version history:**
+- v2.2.2: Fixed SQLite handle leak when `TargetHashCache` init fails — a
+  partially-opened `sqlite3.Connection` is now closed before `self.conn` is
+  cleared, and `__init__` closes the cache if `_build_cache()` raises. On
+  Windows this previously caused `WinError 32` on tempdir cleanup. Hardened
+  `TestSetupLoggerHandlerLeak` for Windows (no longer rmtrees an open log
+  file; path comparison handles 8.3 short names). Added GitHub Actions
+  `build.yml`: runs pytest on Linux + Windows, builds `op.exe`, uploads it
+  as a 30-day artifact, and attaches it to a GitHub Release on `v*` tags.
+  Removed 12 stale files (~12 MB), including the committed `dist/op.exe` —
+  `dist/` is now gitignored.
 - v2.2.1: Cache build now commits to SQLite incrementally (every 1000
   freshly-hashed files) instead of buffering everything in memory until the
   walk completes. A crash or kill during a multi-hour build on a 200k-file
