@@ -1,6 +1,6 @@
 # orgphoto (op)
 
-![logo](doc/logo.png)
+<img src="doc/logo.png" alt="orgphoto logo" width="150">
 
 Organize photos and videos by date. Recursively scans a source directory, extracts creation dates from EXIF metadata (or filesystem timestamps as fallback), and copies / moves files into date-organized subdirectories (`YYYY_MM_DD`). Comprehensive SHA-256 duplicate detection with six handling modes, intelligent master-file selection, and a persistent hash cache designed for archives with hundreds of thousands of files.
 
