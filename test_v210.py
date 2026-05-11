@@ -1143,23 +1143,35 @@ class TestSetupLoggerHandlerLeak(unittest.TestCase):
         first_dest.mkdir()
         second_dest.mkdir()
 
-        op.set_up_logging(first_dest, verbose=False)
-        # Simulate the first destination being torn down (as a test fixture would).
-        shutil.rmtree(first_dest)
-
-        logger = op.set_up_logging(second_dest, verbose=False)
-
-        # The logger should now point only at the second destination's log file.
-        self.assertEqual(len(logger.handlers), 1)
-        handler = logger.handlers[0]
+        # First call attaches a FileHandler pointing at first_dest/events.log.
+        # We do NOT shutil.rmtree(first_dest) here — Windows refuses to delete
+        # an open file. The fix being verified is purely about whether the
+        # second set_up_logging() call swaps the handler; we can check that
+        # without simulating the tempdir teardown.
+        first_logger = op.set_up_logging(first_dest, verbose=False)
+        self.assertEqual(len(first_logger.handlers), 1)
+        first_handler = first_logger.handlers[0]
         self.assertEqual(
-            Path(handler.baseFilename), (second_dest / "events.log").resolve()
+            Path(first_handler.baseFilename), (first_dest / "events.log").resolve()
         )
 
-        # And it must be able to emit without FileNotFoundError.
-        logger.info("regression check")
-        handler.close()
-        logger.removeHandler(handler)
+        # Second call must close the old handler and attach a new one pointing
+        # at second_dest. Before v2.1.1 this left the first handler attached.
+        second_logger = op.set_up_logging(second_dest, verbose=False)
+        self.assertEqual(len(second_logger.handlers), 1)
+        second_handler = second_logger.handlers[0]
+        self.assertEqual(
+            Path(second_handler.baseFilename), (second_dest / "events.log").resolve()
+        )
+
+        # It must be able to emit without FileNotFoundError, even though the
+        # first_dest log handle had been pointing elsewhere.
+        second_logger.info("regression check")
+
+        # Tear down explicitly so Windows can clean the tempdir.
+        for h in list(second_logger.handlers):
+            h.close()
+            second_logger.removeHandler(h)
 
 
 if __name__ == "__main__":

@@ -142,7 +142,14 @@ logging.getLogger("exifread").setLevel(logging.CRITICAL)
 #          A crash or kill during a multi-hour build on a 200k-file tree now loses at
 #          most ~1000 files of work; the next run resumes from where it left off via
 #          the existing mtime+size cache-hit logic.
-__version__ = "2.2.1"
+# v2.2.2 - Fix SQLite handle leak on init failure. TargetHashCache._init_db() now
+#          closes a partially-opened connection in its except clause, and __init__
+#          closes the cache if _build_cache() raises. Without these fixes, a corrupt
+#          DB file or a crash during the cache build would leak the underlying
+#          handle. Linux didn't surface this because it allows deleting open files;
+#          Windows (WinError 32) would block tempdir cleanup and any later attempt
+#          to remove the cache file. No behavior change on the happy path.
+__version__ = "2.2.2"
 myversion = f"v. {__version__} 2026-05-11"
 
 
@@ -376,7 +383,14 @@ class TargetHashCache:
         self.db_path = db_dir / self._DB_FILENAME
 
         self._init_db()
-        self._build_cache()
+        try:
+            self._build_cache()
+        except Exception:
+            # On Windows, an open SQLite handle keeps the .db / .db-wal files
+            # locked and blocks tempdir cleanup (WinError 32). Make sure a
+            # failed build releases the connection before propagating.
+            self.close()
+            raise
 
     # ------------------------------------------------------------------
     # SQLite helpers
@@ -448,6 +462,13 @@ class TargetHashCache:
                 f"Failed to initialise hash cache database ({e}); "
                 "falling back to in-memory cache"
             )
+            # Close any partially-opened handle. Without this, Windows holds
+            # a lock on the .db / .db-wal files and blocks later cleanup.
+            if self.conn is not None:
+                try:
+                    self.conn.close()
+                except Exception:
+                    pass
             self.conn = None
 
     def _flush_inserts(self, rows):
