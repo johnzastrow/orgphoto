@@ -34,7 +34,18 @@ uv run op.py -c -N -j jpg source/ target/                # Disable comprehensive
 uv run op.py -c -D redirect -R MyDups -K copy source/ target/  # Custom redirect
 uv run op.py -c -D rename -K backup -j jpg source/ target/     # Rename mode
 uv run op.py -c -D overwrite -v -j jpg source/ target/         # Overwrite mode
+uv run op.py -O -B target/                                      # Refresh hash cache only (no copy)
 ```
+
+### Scheduling cache refresh (v2.2.0+)
+For very large backup trees (100k+ files), pre-warm the cache so copy jobs find it up to date:
+```bash
+# Linux cron: refresh every night at 02:00
+0 2 * * * cd /path/to/orgphoto && uv run op.py --cache-only /backups/photos >> /var/log/orgphoto-cache.log 2>&1
+
+# Windows Task Scheduler equivalent: run op.exe --cache-only D:\Backups\Photos
+```
+The next real copy job will report most files as `reused` rather than `freshly hashed`.
 
 ### Development setup
 ```bash
@@ -139,9 +150,18 @@ uv run op.py -m -D interactive -j jpg source/ target/  # User can choose redirec
    - MINOR: New features, significant enhancements (like new default behavior)
    - PATCH: Bug fixes, minor improvements, documentation updates
 
-**Current version: 2.1.0** (as of 2026-02-08)
+**Current version: 2.2.0** (as of 2026-05-11)
 
 **Recent version history:**
+- v2.2.0: Added `-O`/`--cache-only` mode: build or refresh the hash cache for a
+  target directory without copying or moving any files. Pass the target as the
+  single positional argument. Intended to be scheduled (cron / Task Scheduler)
+  so that subsequent copy jobs find the cache already warm. Useful for stable
+  backup trees with 100k+ files.
+- v2.1.1: Fixed logger handler leak in `set_up_logging()` — stale FileHandlers
+  from prior invocations were not removed, causing FileNotFoundError when a
+  second job (or test) targeted a different destination. All handlers are now
+  closed and detached before the new one is attached.
 - v2.1.0: Persistent SQLite hash cache (.orgphoto_cache.db) with mtime+size validation
   - Only rehashes new/modified files; reuses cached hashes for unchanged files
   - Added `-C`/`--cache-dir` flag to place cache DB on a different (faster) drive

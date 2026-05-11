@@ -1,151 +1,56 @@
-# orgphoto Test Suite Results
+# orgphoto Test Suite
 
 ## Overview
 
-I have successfully created and executed a comprehensive test suite for the orgphoto application. The test suite includes both unit tests for individual functions and integration tests for full command-line scenarios.
+The test suite has been substantially expanded since the initial 15-test snapshot in this file. As of v2.2.0 (2026-05-11) it covers core file operations, v2.0 master-selection behavior, the v2.1.0 persistent SQLite hash cache, fast EXIF extraction via exifread, the `-B`/`-C`/`-N`/`--no-fast-exif` flags, console progress output, and the v2.2.0 cache-only mode.
 
-## Test Files Created
+## Current Status
 
-### 1. `test_simple.py` ✅ **PASSING**
-- **Purpose**: Focused tests for core functionality
-- **Coverage**: Unit tests for key functions + basic CLI tests
-- **Status**: All 8 tests passing
-- **Runtime**: ~38 seconds
+**70 passing / 0 failing** (`uv run pytest --tb=no -q`)
 
-**Test Coverage:**
-- ✅ File hash calculation
-- ✅ Duplicate filename generation  
-- ✅ Duplicate handling parsing
-- ✅ Extension normalization
-- ✅ Help command functionality
-- ✅ Examples command functionality
-- ✅ Dry run mode
-- ✅ Basic copy operation
+## Test Files
 
-### 2. `test_integration.py` ✅ **PASSING**
-- **Purpose**: Full end-to-end integration tests
-- **Coverage**: Complete CLI workflows with real file operations
-- **Status**: All 7 tests passing
-- **Runtime**: ~30 seconds
+### `test_op.py` — Core helpers and integration smoke tests
+- File hash calculation, duplicate filename generation, extension normalization
+- Argument parsing and duplicate-mode parsing
+- Integration tests for copy / move / dry-run flows
 
-**Test Coverage:**
-- ✅ Basic copy operations with multiple file types
-- ✅ Move operations with verification
-- ✅ Duplicate rename mode
-- ✅ Duplicate redirect mode  
-- ✅ Dry run mode verification
-- ✅ Extension filtering
-- ✅ Performance mode (no comprehensive checking)
+### `test_v210.py` — v2.1.0 + v2.2.0 feature tests
+Organized by feature class:
 
-### 3. `test_op.py` ⚠️ **PARTIAL**
-- **Purpose**: Comprehensive unit tests with mocking
-- **Status**: Some tests failing due to integration complexity
-- **Note**: More complex test requiring mocking of internal functions
+- `TestHashCacheCreation` — DB file creation in target / custom cache dir, indexing, close
+- `TestHashCacheReuse` — unchanged files reused, modified files rehashed, deleted entries pruned, new files picked up
+- `TestHashCacheDBOperations` — `add_file()`, `invalidate_file()`, `find_duplicates()`, persistence across restart
+- `TestHashCacheGracefulFallback` — corrupted/deleted DB triggers rebuild, empty/missing target dir handled
+- `TestHashCacheSchemaVersion` — schema-version mismatch triggers rebuild
+- `TestHashCacheSkipsOwnFiles` — `.orgphoto_cache.db` itself is not indexed
+- `TestFastExifExtraction` — JPEG / TIFF / HEIC / RAW route through exifread; non-image and unsupported files fall back to hachoir
+- `TestFastExifWithRealJpeg` — exifread and hachoir agree on dates for a minimal real JPEG
+- `TestNoComprehensiveCheckFlag` — `-N` skips DB creation entirely
+- `TestBenchmarkFlag` — `-B` prints all five stat fields including "Stale entries purged"
+- `TestCacheDirFlag` — `-C` places the DB in the custom directory
+- `TestNoFastExifFlag` — `--no-fast-exif` parses correctly and defaults to off
+- `TestConsoleProgress` — "Done:" and "Hash cache ready" lines are emitted
+- `TestIntegrationFixed` — copy / move / dry-run / rename / redirect against v2.0 master-selection
+- `TestCacheOnlyMode` (v2.2.0) — `-O` builds DB and exits; second run reuses; `-C` honored; rejects `-c`/`-m`/`-d`/`-N`; requires a target directory; warns and uses DEST_DIR when both positionals are supplied; nonexistent target errors out
+- `TestNormalModeRequiresBothPositionals` — without `-O`, both SOURCE_DIR and DEST_DIR are required
+- `TestSetupLoggerHandlerLeak` (v2.1.1) — regression check that `set_up_logging()` replaces stale FileHandlers across calls
 
-### 4. `run_tests.py`
-- **Purpose**: Test runner script
-- **Features**: Dependency checking, unified test execution
+### `test_simple.py` and `test_integration.py`
+Earlier test scaffolding from the v1.x era. Kept for now but mostly superseded by the categorized suites above.
 
-## Key Features Tested
+## Running the suite
 
-### Core Functionality
-✅ **File Processing**
-- Hash-based duplicate detection
-- Extension filtering and normalization
-- EXIF metadata handling fallbacks
-
-✅ **Duplicate Handling Modes**
-- Skip mode (default)
-- Rename mode (with custom keywords)
-- Redirect mode (to separate directories)
-- Content-based detection
-
-✅ **Operation Modes**
-- Copy mode (preserves originals)
-- Move mode (removes originals)
-- Dry run mode (simulation only)
-
-✅ **Command Line Interface**
-- Help system (`-h`, `--examples`)
-- Argument parsing and validation
-- Error handling and user feedback
-
-## Test Results Summary
-
-| Test Suite | Tests | Passed | Failed | Status |
-|------------|-------|--------|--------|---------|
-| `test_simple.py` | 8 | 8 | 0 | ✅ PASS |
-| `test_integration.py` | 7 | 7 | 0 | ✅ PASS |
-| **Total Critical** | **15** | **15** | **0** | **✅ PASS** |
-
-## Running the Tests
-
-### Quick Test (Recommended)
 ```bash
-# Run focused tests that verify core functionality
-uv run python test_simple.py
+uv run pytest          # full suite, verbose
+uv run pytest -q       # quiet
+uv run pytest --tb=no  # only failures, no traceback noise
+uv run pytest test_v210.py::TestCacheOnlyMode -v  # one class
 ```
 
-### Full Integration Tests
-```bash
-# Run comprehensive end-to-end tests
-uv run python test_integration.py
-```
+## History
 
-### All Tests
-```bash
-# Run complete test suite
-uv run python run_tests.py
-```
-
-## Test Infrastructure
-
-### Automated Test Environment
-- ✅ Temporary directory creation/cleanup
-- ✅ Isolated test environments
-- ✅ Real file system operations
-- ✅ Subprocess command execution
-- ✅ Output verification and logging
-
-### Test Data Generation
-- ✅ Dynamic test file creation
-- ✅ Multiple file formats (jpg, png, gif, txt)
-- ✅ Content-based differentiation
-- ✅ Directory structure simulation
-
-## Verified Functionality
-
-### ✅ **Photo Organization**
-- Files organized into YYYY_MM_DD directories
-- Metadata extraction with filesystem fallback
-- Recursive source directory processing
-
-### ✅ **Duplicate Management**
-- SHA-256 content-based duplicate detection
-- Intelligent filename conflict resolution
-- Configurable duplicate handling strategies
-- Separate redirect directories with custom naming
-
-### ✅ **Performance Features**
-- Comprehensive checking mode (default)
-- Performance mode for large directories
-- Hash caching for efficiency
-- Progress reporting and logging
-
-### ✅ **Safety Features**
-- Dry run simulation mode
-- Comprehensive logging to destination
-- Error handling for file operations
-- User confirmation for destructive operations
-
-## Conclusion
-
-The orgphoto application has been thoroughly tested with **15 critical tests all passing**. The test suite verifies:
-
-1. **Core file operations** work correctly
-2. **All duplicate handling modes** function as designed
-3. **Command-line interface** is robust and user-friendly
-4. **Safety features** prevent data loss
-5. **Performance optimizations** work effectively
-
-The application is ready for production use with confidence in its reliability and functionality.
+- **v2.2.0 (2026-05-11)**: 70 tests / 0 failures. Added `TestCacheOnlyMode` (8 tests) and `TestNormalModeRequiresBothPositionals`.
+- **v2.1.1 (2026-05-11)**: 61 tests / 0 failures. Fixed `set_up_logging()` handler leak; removed two stale v1.x duplicate-mode tests in `test_op.py` that the v2.0 master-selection feature had superseded; added `TestSetupLoggerHandlerLeak` regression test.
+- **v2.1.0 (2026-02-08)**: First comprehensive v2.1.0 test coverage in `test_v210.py`.
+- **Initial snapshot (Feb 2026)**: 15 tests across `test_simple.py` and `test_integration.py`.

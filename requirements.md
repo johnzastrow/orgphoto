@@ -1,5 +1,48 @@
 # Notes
 
+## May 11, 2026
+
+● Summary
+
+  Added a standalone hash-cache refresh mode and fixed a latent logger bug
+  surfaced while extending the test suite.
+
+  Version 2.2.0 - Cache-Only Mode:
+
+  1. New `-O`/`--cache-only` flag:
+  - Builds or refreshes the persistent SQLite hash cache (.orgphoto_cache.db)
+    for a target directory and exits, without copying or moving any files.
+  - Pass the target as a single positional argument; SOURCE_DIR is unused.
+  - If both positionals are supplied (e.g., when reusing a copy-job's argument
+    layout in a cron entry), DEST_DIR wins and SOURCE_DIR is ignored with a
+    warning on stderr.
+  - Honors -C/--cache-dir, -B/--benchmark, -v/--verbose.
+  - Incompatible with -m/-c/-d/-N (exits with error code 2).
+  - Designed to be scheduled (cron / Task Scheduler) so subsequent copy jobs
+    find the cache already warm. Especially valuable for stable backup trees
+    with 100k+ files where the first cache build is I/O-bound but every
+    subsequent build only rehashes new or modified files.
+
+  2. Example cron entry:
+  ```cron
+  0 2 * * * cd /opt/orgphoto && uv run op.py --cache-only /backups/photos
+  ```
+
+  Version 2.1.1 - Logger Handler-Leak Fix:
+
+  1. set_up_logging() now closes and detaches stale FileHandlers from prior
+     invocations before attaching the new one.
+  2. Fixes FileNotFoundError that occurred when:
+  - The same Python process initiated more than one orgphoto run with
+    different destination directories (rare in CLI usage but the
+    underlying bug existed).
+  - Tests called op.main() multiple times across temp directories that
+    were torn down between calls (very common — this is what surfaced it).
+  3. Test suite went from 52 passing / 10 failing to 70 passing / 0 failing
+     once this fix landed (combined with cleanup of two stale v1.x-era
+     duplicate-mode tests that the v2.0 master-selection feature had
+     superseded).
+
 ## October 14, 2025
 
 ● Summary

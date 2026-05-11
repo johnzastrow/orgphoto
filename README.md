@@ -6,7 +6,7 @@ orgphoto (op)
 ## Table of Contents
 
 - [Summary](#summary)
-- [What's New](#-whats-new-in-v210)
+- [What's New](#-whats-new-in-v220)
 - [Features](#features)
 - [Usage](#usage)
 - [Usage Examples](#usage-examples)
@@ -25,14 +25,23 @@ and copies or moves them into subfolders in a destination directory, organized b
 
 **Key features**: Comprehensive SHA-256 duplicate detection, intelligent conflict resolution, and flexible duplicate handling modes.
 
-## ✨ What's New in v2.1.0
+## ✨ What's New in v2.2.0
 
-- **⚡ Persistent SQLite Hash Cache**: SHA-256 hashes are stored in `.orgphoto_cache.db` and reused across runs. Only new or modified files are rehashed, reducing startup from minutes to seconds for large collections.
-- **⚡ Fast EXIF Extraction (default)**: Uses `exifread` for header-only EXIF reads on image files (JPEG, TIFF, HEIC, RAW), typically 5-50x faster than hachoir. Falls back to hachoir automatically for video/audio. Disable with `--no-fast-exif`.
-- **📁 New HEIC/RAW Support**: The exifread integration adds creation date extraction for HEIC, CR2, NEF, ARW, DNG, ORF, and other RAW formats that hachoir does not support.
-- **🔧 `-C`/`--cache-dir`**: Place the hash cache database on a different (faster) drive.
-- **📊 `-B`/`--benchmark`**: Print hash cache build timing, hit rate, and statistics to the console.
-- **📈 Console Progress**: Real-time progress output during both hash cache building and file processing.
+- **🗓️ `-O`/`--cache-only` mode**: Build or refresh the hash cache for a target directory **without copying or moving any files**. Designed to be scheduled (cron / Task Scheduler) so subsequent copy jobs find the cache already warm. Pass the target directory as the single positional argument.
+  ```bash
+  uv run op.py -O -B /backups/photos
+  ```
+  Especially valuable for **stable backup trees with 100k+ files**: pre-warming the cache turns the slow per-job hash build into an out-of-band maintenance task.
+
+### Previous Updates (v2.1.x)
+
+- **🔧 v2.1.1 — Logger handler-leak fix**: `set_up_logging()` now closes and detaches stale `FileHandler`s from earlier invocations before attaching the new one. Previously, repeated runs in the same Python process (or test invocations) could fail with `FileNotFoundError` when an old handler still pointed at a deleted log file.
+- **⚡ v2.1.0 — Persistent SQLite Hash Cache**: SHA-256 hashes are stored in `.orgphoto_cache.db` and reused across runs. Only new or modified files are rehashed, reducing startup from minutes to seconds for large collections.
+- **⚡ v2.1.0 — Fast EXIF Extraction (default)**: Uses `exifread` for header-only EXIF reads on image files (JPEG, TIFF, HEIC, RAW), typically 5-50x faster than hachoir. Falls back to hachoir automatically for video/audio. Disable with `--no-fast-exif`.
+- **📁 v2.1.0 — HEIC/RAW Support**: The exifread integration adds creation date extraction for HEIC, CR2, NEF, ARW, DNG, ORF, and other RAW formats that hachoir does not support.
+- **🔧 v2.1.0 — `-C`/`--cache-dir`**: Place the hash cache database on a different (faster) drive.
+- **📊 v2.1.0 — `-B`/`--benchmark`**: Print hash cache build timing, hit rate, and statistics to the console.
+- **📈 v2.1.0 — Console Progress**: Real-time progress output during both hash cache building and file processing.
 
 ### Previous Updates (v2.0.x)
 
@@ -75,8 +84,9 @@ Note this is a major rewrite of the upstream project skorokithakis/photocopy and
 - Uses pathlib for modern, robust path handling.
 
 ### Advanced Duplicate Detection
-- **⚡ Persistent Hash Cache** (NEW in v2.1.0): SQLite-backed cache persists SHA-256 hashes across runs; validates via mtime+size
-- **⚡ Fast EXIF Extraction** (NEW in v2.1.0): Header-only reads via exifread for images/RAW; hachoir fallback for video/audio
+- **🗓️ Scheduled Cache Refresh** (NEW in v2.2.0): `-O`/`--cache-only` mode pre-warms the cache without copying, ideal as a cron / Task Scheduler job for large backup trees
+- **⚡ Persistent Hash Cache** (v2.1.0): SQLite-backed cache persists SHA-256 hashes across runs; validates via mtime+size
+- **⚡ Fast EXIF Extraction** (v2.1.0): Header-only reads via exifread for images/RAW; hachoir fallback for video/audio
 - **🧠 Intelligent Master File Selection** (v2.0.0):
   - **Automatic master identification**: Determines best file to keep based on multiple criteria
   - **Priority ranking**: No duplicate keywords > Shortest filename > Oldest date
@@ -105,14 +115,16 @@ From the packaged .exe. But the script is the same code.
 C:\Users\user\Github\orgphoto\output>op.exe -h
 usage: op.py [-h] [-m | -c] [-j EXT] [-v] [-x {yes,no,fs}] [-d]
               [-D DUPLICATE_HANDLING] [-N] [-R DIR] [-K WORD]
-              [-C DIR] [-B] [--no-fast-exif] [--examples] [--version]
-              SOURCE_DIR DEST_DIR
+              [-C DIR] [-B] [-O] [--no-fast-exif] [--examples] [--version]
+              [SOURCE_DIR] [DEST_DIR]
 
 Organize files by date with comprehensive duplicate detection
 
 positional arguments:
-  SOURCE_DIR            Source directory containing images/videos to organize
-  DEST_DIR              Destination directory where organized files will be placed
+  SOURCE_DIR            Source directory containing images/videos to organize.
+                        Omit when using --cache-only.
+  DEST_DIR              Destination directory where organized files will be placed.
+                        In --cache-only mode this is the target directory to cache.
 
 options:
   -h, --help            show this help message and exit
@@ -140,11 +152,18 @@ options:
                         Defaults to the target directory. Use this to place the cache
                         on a faster drive (e.g. SSD) when photos are on a slower drive.
   -B, --benchmark       Print hash cache build timing and statistics to the console
+  -O, --cache-only      Build or refresh the SQLite hash cache for a target directory
+                        and exit, without copying or moving any files. Intended to be
+                        scheduled (cron / Task Scheduler) so subsequent copy jobs find
+                        the cache already warm. Pass the target directory as the
+                        single positional argument; SOURCE_DIR is not used.
+                        Incompatible with -m/-c/-d/-N.
   --no-fast-exif        Disable fast EXIF via exifread; use hachoir for all files
   --examples            Show usage examples and exit
   --version             Show program version and exit
 
-If neither --move nor --copy is specified, the script will prompt to run in dryrun mode simulating moving files.
+If neither --move nor --copy is specified (and --cache-only is not used), the script
+will prompt to run in dryrun mode simulating moving files.
 
 Note: Version information displays when running without arguments. Use --version to see the version number.
 ```
@@ -263,6 +282,36 @@ Note: Version information displays when running without arguments. Use --version
     ```bash
     python op.py -c -v -D overwrite -j jpg,png Z:\photosync target/
     ```
+
+### Cache-Only Mode (v2.2.0)
+
+Use `-O`/`--cache-only` to refresh the hash cache for a target tree as a standalone
+maintenance task, with no copy or move work. The next time you run a real copy job,
+the cache will be warm and unchanged files won't need to be rehashed.
+
+**a. Refresh the cache for a backup tree**:
+```bash
+uv run op.py -O -B /backups/photos
+```
+*Output reports `total_files`, `reused`, `freshly hashed`, `stale_removed`, and elapsed time.*
+
+**b. Linux cron — refresh every night at 02:00**:
+```cron
+0 2 * * * cd /path/to/orgphoto && uv run op.py --cache-only /backups/photos >> /var/log/orgphoto-cache.log 2>&1
+```
+
+**c. Windows Task Scheduler — equivalent invocation**:
+```
+op.exe --cache-only D:\Backups\Photos
+```
+
+**d. Place the cache DB on a faster drive while caching photos on a slower one**:
+```bash
+uv run op.py -O -C /fast_ssd/cache /backups/photos
+```
+
+`-O` is incompatible with `-m`, `-c`, `-d`, and `-N` (the whole point of `-O` is to
+build the cache, so disabling comprehensive checking makes no sense).
 
 ### Performance Optimization Examples
 
@@ -845,6 +894,7 @@ python op.py -c -B -j jpg source/ target/
 6. **Migration projects**: Use `interactive` mode for control
 7. **Slow drives**: Use `-C /fast/path` to put the cache DB on an SSD
 8. **Verify speedup**: Use `-B` to see benchmark timing and cache hit rate
+9. **Very large backup trees (100k+ files)**: Schedule `op.py -O TARGET` (v2.2.0+) nightly via cron / Task Scheduler so copy jobs always find a warm cache. The first cache build still has to read every file once; after that, only changed files are rehashed.
 
 The persistent hash cache ensures excellent performance for most use cases. After the first run, subsequent runs typically complete the cache build in seconds rather than minutes.
 

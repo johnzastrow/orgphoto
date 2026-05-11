@@ -910,6 +910,146 @@ class TestIntegrationFixed(unittest.TestCase):
         self.assertEqual(redirected.read_bytes(), b"existing")
 
 
+class TestCacheOnlyMode(unittest.TestCase):
+    """Test -O/--cache-only flag: builds cache and exits without copying."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.target = self.tmp / "target"
+        self.target.mkdir()
+
+    def _cleanup_logger(self):
+        logger = logging.getLogger("op")
+        for handler in logger.handlers[:]:
+            handler.close()
+            logger.removeHandler(handler)
+
+    def test_cache_only_builds_db_and_exits(self):
+        """Cache-only run creates .orgphoto_cache.db and processes no files."""
+        _make_file(self.target / "photo.jpg", b"a")
+        _make_file(self.target / "video.mp4", b"b")
+
+        with patch("sys.argv", ["op.py", "-O", str(self.target)]):
+            with patch("sys.stdout", new_callable=StringIO) as mock_out:
+                op.main()
+                output = mock_out.getvalue()
+
+        self._cleanup_logger()
+        self.assertTrue((self.target / ".orgphoto_cache.db").exists())
+        # Confirm the cache-only banner appeared
+        self.assertIn("Hash Cache Refresh", output)
+        # Confirm no copy/move action header
+        self.assertNotIn("Processing files (copy)", output)
+        self.assertNotIn("Processing files (move)", output)
+
+    def test_cache_only_second_run_reuses_hashes(self):
+        """Second cache-only run on unchanged files reports reused > 0."""
+        _make_file(self.target / "photo.jpg", b"a")
+        _make_file(self.target / "video.mp4", b"b")
+
+        # First run populates the cache
+        with patch("sys.argv", ["op.py", "-O", str(self.target)]):
+            with patch("sys.stdout", new_callable=StringIO):
+                op.main()
+        self._cleanup_logger()
+
+        # Second run should reuse
+        with patch("sys.argv", ["op.py", "-O", str(self.target)]):
+            with patch("sys.stdout", new_callable=StringIO) as mock_out:
+                op.main()
+                output = mock_out.getvalue()
+        self._cleanup_logger()
+
+        # photo.jpg and video.mp4 should be reused; events.log changes each run
+        # so it gets rehashed. Expect at least 2 reused.
+        import re
+
+        m = re.search(r"Reused from cache\s*:\s*(\d+)", output)
+        self.assertIsNotNone(m, f"Reused line missing from output:\n{output}")
+        self.assertGreaterEqual(int(m.group(1)), 2)
+
+    def test_cache_only_with_custom_cache_dir(self):
+        """-O combined with -C places the DB in the custom dir."""
+        _make_file(self.target / "photo.jpg", b"a")
+        cache_dir = self.tmp / "cache"
+
+        with patch("sys.argv", ["op.py", "-O", "-C", str(cache_dir), str(self.target)]):
+            with patch("sys.stdout", new_callable=StringIO):
+                op.main()
+
+        self._cleanup_logger()
+        self.assertTrue((cache_dir / ".orgphoto_cache.db").exists())
+        self.assertFalse((self.target / ".orgphoto_cache.db").exists())
+
+    def test_cache_only_rejects_copy_flag(self):
+        """--cache-only with -c exits with error code 2."""
+        with patch("sys.argv", ["op.py", "-O", "-c", str(self.target)]):
+            with patch("sys.stderr", new_callable=StringIO) as mock_err:
+                with self.assertRaises(SystemExit) as cm:
+                    op.main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn("incompatible", mock_err.getvalue())
+
+    def test_cache_only_rejects_no_comprehensive_check(self):
+        """--cache-only with -N exits with error: the whole point IS the cache."""
+        with patch("sys.argv", ["op.py", "-O", "-N", str(self.target)]):
+            with patch("sys.stderr", new_callable=StringIO) as mock_err:
+                with self.assertRaises(SystemExit) as cm:
+                    op.main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn("incompatible", mock_err.getvalue())
+
+    def test_cache_only_requires_target_arg(self):
+        """--cache-only with no positional arg exits with error code 2."""
+        with patch("sys.argv", ["op.py", "-O"]):
+            with patch("sys.stderr", new_callable=StringIO) as mock_err:
+                with self.assertRaises(SystemExit) as cm:
+                    op.main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn("requires a target directory", mock_err.getvalue())
+
+    def test_cache_only_nonexistent_target_errors(self):
+        """--cache-only against a missing dir exits with error code 1."""
+        with patch("sys.argv", ["op.py", "-O", str(self.tmp / "does_not_exist")]):
+            with patch("sys.stderr", new_callable=StringIO) as mock_err:
+                with self.assertRaises(SystemExit) as cm:
+                    op.main()
+        self.assertEqual(cm.exception.code, 1)
+        self.assertIn("does not exist", mock_err.getvalue())
+
+    def test_cache_only_ignores_source_dir(self):
+        """When both positionals given, DEST_DIR wins and SOURCE_DIR is ignored."""
+        _make_file(self.target / "photo.jpg", b"a")
+        bogus_source = self.tmp / "bogus_source"
+        bogus_source.mkdir()
+
+        with patch("sys.argv", ["op.py", "-O", str(bogus_source), str(self.target)]):
+            with patch("sys.stdout", new_callable=StringIO):
+                with patch("sys.stderr", new_callable=StringIO) as mock_err:
+                    op.main()
+                    err = mock_err.getvalue()
+
+        self._cleanup_logger()
+        # Cache should land in self.target, not bogus_source
+        self.assertTrue((self.target / ".orgphoto_cache.db").exists())
+        self.assertFalse((bogus_source / ".orgphoto_cache.db").exists())
+        # And there's a warning telling the user the source arg was ignored
+        self.assertIn("ignores SOURCE_DIR", err)
+
+
+class TestNormalModeRequiresBothPositionals(unittest.TestCase):
+    """Without --cache-only, both SOURCE_DIR and DEST_DIR must be supplied."""
+
+    def test_missing_both_errors(self):
+        with patch("sys.argv", ["op.py", "-c"]):
+            with patch("sys.stderr", new_callable=StringIO) as mock_err:
+                with self.assertRaises(SystemExit) as cm:
+                    op.main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn("SOURCE_DIR and DEST_DIR are required", mock_err.getvalue())
+
+
 class TestSetupLoggerHandlerLeak(unittest.TestCase):
     """Regression: set_up_logging must not retain stale FileHandlers across calls.
 

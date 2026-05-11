@@ -133,7 +133,11 @@ logging.getLogger("exifread").setLevel(logging.CRITICAL)
 #          prior invocations before attaching a new one. Previously, running multiple
 #          jobs in the same Python process (or from tests) left handlers pointing at
 #          deleted log files, causing FileNotFoundError on subsequent log writes.
-__version__ = "2.1.1"
+# v2.2.0 - Added -O/--cache-only mode: build or refresh the SQLite hash cache for a
+#          target directory and exit, without copying or moving any files. Intended
+#          to be scheduled (cron / Task Scheduler) so subsequent copy jobs find the
+#          cache already warm. Useful for stable backup trees with 100k+ files.
+__version__ = "2.2.0"
 myversion = f"v. {__version__} 2026-05-11"
 
 
@@ -1676,13 +1680,17 @@ IMPORTANT NOTES:
     # Required positional arguments
     parser.add_argument(
         "source_dir",
-        help="Source directory containing files to organize. Will be scanned recursively for all subdirectories. Example: '/Users/photos/unsorted' or 'C:\\Photos\\Import'",
+        nargs="?",
+        default=None,
+        help="Source directory containing files to organize. Will be scanned recursively for all subdirectories. Example: '/Users/photos/unsorted' or 'C:\\Photos\\Import'. Omit when using --cache-only.",
         metavar="SOURCE_DIR",
     )
 
     parser.add_argument(
         "destination_dir",
-        help="Destination directory where organized files will be placed in date-based subdirectories (YYYY_MM_DD format). Directory will be created if it doesn't exist. Example: '/Users/photos/organized' or 'C:\\Photos\\Archive'",
+        nargs="?",
+        default=None,
+        help="Destination directory where organized files will be placed in date-based subdirectories (YYYY_MM_DD format). Directory will be created if it doesn't exist. Example: '/Users/photos/organized' or 'C:\\Photos\\Archive'. In --cache-only mode this is the target directory to cache.",
         metavar="DEST_DIR",
     )
 
@@ -1795,6 +1803,14 @@ IMPORTANT NOTES:
     )
 
     parser.add_argument(
+        "-O",
+        "--cache-only",
+        action="store_true",
+        help="Build or refresh the SQLite hash cache (.orgphoto_cache.db) for a target directory and exit, without copying or moving any files. Intended to be scheduled (cron / Task Scheduler) so that subsequent copy/move jobs find the cache already warm. Pass the target directory as the single positional argument; SOURCE_DIR is not used. Honors -C/--cache-dir, -B/--benchmark, -v/--verbose. Incompatible with -m/-c/-d/-N.",
+        dest="cache_only",
+    )
+
+    parser.add_argument(
         "--examples",
         action="store_true",
         help="Display comprehensive usage examples covering all major features and exit. Shows real-world scenarios for basic operations, duplicate handling modes, performance optimization, and advanced combinations. Useful quick reference for command construction.",
@@ -1812,6 +1828,97 @@ IMPORTANT NOTES:
     return parsed_args
 
 
+def _run_cache_only(parsed_args):
+    """Build or refresh the persistent hash cache for a target dir, then exit.
+
+    Accepts one positional argument (the target directory). If both positionals
+    are supplied, DEST_DIR wins and SOURCE_DIR is ignored with a warning, so a
+    cron entry can reuse the same argument layout as a copy job.
+    """
+    # Reject flags that don't make sense for cache-only mode.
+    incompatible = []
+    if parsed_args.move:
+        incompatible.append("-m/--move")
+    if parsed_args.copy:
+        incompatible.append("-c/--copy")
+    if parsed_args.dryrun:
+        incompatible.append("-d/--dryrun")
+    if parsed_args.no_comprehensive_check:
+        incompatible.append("-N/--no-comprehensive-check")
+    if incompatible:
+        print(
+            f"error: --cache-only is incompatible with: {', '.join(incompatible)}",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    # Pick the target. DEST_DIR wins when both are passed.
+    if parsed_args.destination_dir:
+        target_str = parsed_args.destination_dir
+        if parsed_args.source_dir:
+            print(
+                f"warning: --cache-only ignores SOURCE_DIR ('{parsed_args.source_dir}')",
+                file=sys.stderr,
+            )
+    elif parsed_args.source_dir:
+        target_str = parsed_args.source_dir
+    else:
+        print(
+            "error: --cache-only requires a target directory argument",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    target_dir = Path(target_str).expanduser().resolve()
+    if not target_dir.exists() or not target_dir.is_dir():
+        print(
+            f"error: target directory does not exist: {target_dir}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    logger = set_up_logging(target_dir, parsed_args.verbose)
+    start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    logger.info("=" * 80)
+    logger.info("orgphoto - Hash Cache Refresh")
+    logger.info(f"Version: {__version__}")
+    logger.info(f"Session Started: {start_time}")
+    logger.info(f"Target: {target_dir}")
+    logger.info("=" * 80)
+
+    cache_dir = None
+    if parsed_args.cache_dir is not None:
+        cache_dir = Path(parsed_args.cache_dir).expanduser().resolve()
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+    hash_cache = TargetHashCache(target_dir, logger, cache_dir=cache_dir)
+
+    stats = hash_cache.get_build_stats()
+    if stats:
+        # In cache-only mode, benchmark stats are the whole point — always print.
+        print("\n--- Hash Cache Refresh ---")
+        print(f"Target              : {target_dir}")
+        print(f"Cache DB            : {hash_cache.db_path}")
+        print(f"Total files indexed : {stats['total_files']}")
+        print(f"Reused from cache   : {stats['reused']}")
+        print(f"Freshly hashed      : {stats['hashed']}")
+        print(f"Stale entries purged: {stats['stale_removed']}")
+        print(f"Elapsed time        : {stats['elapsed_seconds']:.3f}s")
+        if stats["reused"] > 0 and stats["total_files"] > 0:
+            pct = stats["reused"] / stats["total_files"] * 100
+            print(f"Cache hit rate      : {pct:.1f}%")
+        print("--------------------------\n")
+
+    hash_cache.close()
+
+    end_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    logger.info("=" * 80)
+    logger.info(f"Session Ended: {end_time}")
+    logger.info("=" * 80)
+    logger.info("")
+    logging.shutdown()
+
+
 def main(args=None):
     """
     Main entry point for the script.
@@ -1825,6 +1932,21 @@ def main(args=None):
     """
     # Parse command line arguments
     parsed_args = parse_arguments(args)
+
+    # Cache-only mode: build/refresh the hash cache and exit. Branches early
+    # because this mode has different positional requirements (one target dir
+    # instead of source + dest) and skips all copy/move logic.
+    if parsed_args.cache_only:
+        _run_cache_only(parsed_args)
+        return
+
+    # Normal mode requires both positionals.
+    if parsed_args.source_dir is None or parsed_args.destination_dir is None:
+        print(
+            "error: SOURCE_DIR and DEST_DIR are required (omit only with --cache-only)",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     # Normalize and validate extensions
     if parsed_args.extense is None:
@@ -1875,7 +1997,7 @@ def main(args=None):
     start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info("=" * 80)
     logger.info("orgphoto - Photo Organization Tool")
-    logger.info(f"Version: {__version__} (Release Date: 2026-02-08)")
+    logger.info(f"Version: {__version__} (Release Date: 2026-05-11)")
     logger.info(f"Session Started: {start_time}")
     logger.info("=" * 80)
     logger.debug("Command-line options: %s", vars(parsed_args))
