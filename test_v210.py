@@ -646,6 +646,7 @@ class TestBenchmarkFlag(unittest.TestCase):
         self.assertIn("Total files indexed", output)
         self.assertIn("Reused from cache", output)
         self.assertIn("Freshly hashed", output)
+        self.assertIn("Stale entries purged", output)
         self.assertIn("Elapsed time", output)
 
 
@@ -907,6 +908,43 @@ class TestIntegrationFixed(unittest.TestCase):
         redirected = redirect_dir / "photo.jpg"
         self.assertTrue(redirected.exists())
         self.assertEqual(redirected.read_bytes(), b"existing")
+
+
+class TestSetupLoggerHandlerLeak(unittest.TestCase):
+    """Regression: set_up_logging must not retain stale FileHandlers across calls.
+
+    Prior to v2.1.1, a second invocation reused the handler from the first
+    call, which pointed at a (possibly deleted) log file in a previous
+    destination — causing FileNotFoundError on the next log emit.
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+
+    def test_second_call_replaces_stale_handler(self):
+        first_dest = self.tmp / "first"
+        second_dest = self.tmp / "second"
+        first_dest.mkdir()
+        second_dest.mkdir()
+
+        op.set_up_logging(first_dest, verbose=False)
+        # Simulate the first destination being torn down (as a test fixture would).
+        shutil.rmtree(first_dest)
+
+        logger = op.set_up_logging(second_dest, verbose=False)
+
+        # The logger should now point only at the second destination's log file.
+        self.assertEqual(len(logger.handlers), 1)
+        handler = logger.handlers[0]
+        self.assertEqual(
+            Path(handler.baseFilename), (second_dest / "events.log").resolve()
+        )
+
+        # And it must be able to emit without FileNotFoundError.
+        logger.info("regression check")
+        handler.close()
+        logger.removeHandler(handler)
 
 
 if __name__ == "__main__":

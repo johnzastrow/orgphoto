@@ -837,9 +837,7 @@ def get_created_date_fast(filename: Path, logger):
                 if tag:
                     date_str = str(tag)
                     try:
-                        return datetime.datetime.strptime(
-                            date_str, "%Y:%m:%d %H:%M:%S"
-                        )
+                        return datetime.datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
                     except ValueError:
                         logger.debug(
                             f"exifread: unparseable date '{date_str}' in {filename}"

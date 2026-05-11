@@ -165,7 +165,7 @@ class TestIntegration(unittest.TestCase):
     def test_dry_run_mode(self):
         """Test dry run mode doesn't modify files."""
         # Create source files
-        source_file = self.create_test_image(self.source_dir / "photo.jpg")
+        self.create_test_image(self.source_dir / "photo.jpg")
 
         # Mock datetime to return fixed date
         with patch("op.get_created_date") as mock_date:
@@ -246,110 +246,6 @@ class TestIntegration(unittest.TestCase):
 
         # Verify original was removed (move mode)
         self.assertFalse(source_file.exists())
-
-
-class TestDuplicateModes(unittest.TestCase):
-    """Test different duplicate handling modes."""
-
-    def setUp(self):
-        """Set up test environment."""
-        self.test_root = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, self.test_root)
-
-        self.source_dir = self.test_root / "source"
-        self.dest_dir = self.test_root / "dest"
-        self.source_dir.mkdir()
-        self.dest_dir.mkdir()
-
-    def create_test_image(
-        self, path: Path, content: bytes = None, create_dirs: bool = True
-    ):
-        """Create a test image file with specified content."""
-        if create_dirs:
-            path.parent.mkdir(parents=True, exist_ok=True)
-
-        if content is None:
-            content = f"Test image content for {path.name}".encode()
-
-        path.write_bytes(content)
-        return path
-
-    def test_rename_duplicate_mode(self):
-        """Test rename duplicate handling."""
-        # Create existing file in destination
-        date_dir = self.dest_dir / "2023_05_15"
-        existing_file = self.create_test_image(
-            date_dir / "photo.jpg", b"existing content"
-        )
-
-        # Create source file with same name but different content
-        source_file = self.create_test_image(
-            self.source_dir / "photo.jpg", b"new content"
-        )
-
-        with patch("op.get_created_date") as mock_date:
-            mock_date.return_value = datetime(2023, 5, 15)
-
-            args = [
-                "-c",  # copy mode
-                "-D",
-                "rename",  # rename duplicates
-                "-j",
-                "jpg",
-                str(self.source_dir),
-                str(self.dest_dir),
-            ]
-
-            with patch("sys.argv", ["op.py"] + args):
-                op.main()
-
-        # Verify original file exists unchanged
-        self.assertTrue(existing_file.exists())
-        self.assertEqual(existing_file.read_bytes(), b"existing content")
-
-        # Verify renamed file was created
-        renamed_file = date_dir / "photo_duplicate.jpg"
-        self.assertTrue(renamed_file.exists())
-        self.assertEqual(renamed_file.read_bytes(), b"new content")
-
-    def test_redirect_duplicate_mode(self):
-        """Test redirect duplicate handling."""
-        # Create existing file in destination
-        date_dir = self.dest_dir / "2023_05_15"
-        existing_file = self.create_test_image(
-            date_dir / "photo.jpg", b"existing content"
-        )
-
-        # Create source file with same name
-        source_file = self.create_test_image(
-            self.source_dir / "photo.jpg", b"duplicate content"
-        )
-
-        with patch("op.get_created_date") as mock_date:
-            mock_date.return_value = datetime(2023, 5, 15)
-
-            args = [
-                "-c",  # copy mode
-                "-D",
-                "redirect",  # redirect duplicates
-                "-j",
-                "jpg",
-                str(self.source_dir),
-                str(self.dest_dir),
-            ]
-
-            with patch("sys.argv", ["op.py"] + args):
-                op.main()
-
-        # Verify original file exists unchanged
-        self.assertTrue(existing_file.exists())
-        self.assertEqual(existing_file.read_bytes(), b"existing content")
-
-        # Verify duplicate was redirected
-        redirect_dir = self.dest_dir / "Duplicates" / "2023_05_15"
-        redirected_file = redirect_dir / "photo_duplicate.jpg"
-        self.assertTrue(redirected_file.exists())
-        self.assertEqual(redirected_file.read_bytes(), b"duplicate content")
 
 
 if __name__ == "__main__":
