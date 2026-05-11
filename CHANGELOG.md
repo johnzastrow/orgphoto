@@ -17,6 +17,48 @@ Nothing in flight. Open issues and PRs:
 
 ---
 
+## [2.2.3] — 2026-05-11
+
+### Changed
+- **Documentation reorganization.** README slimmed from 1063 lines to <70:
+  logo, one-paragraph summary, highlights, quick-start, links to deep-dive
+  docs, build/release badges. All long-form content moved into eight focused
+  files under `docs/`:
+  - `docs/usage.md` — full CLI synopsis + option table
+  - `docs/usage-examples.md` — 30+ worked examples
+  - `docs/duplicate-handling.md` — all `-D` modes, redirect layout, comprehensive checking
+  - `docs/master-selection.md` — v2.0 master-file logic
+  - `docs/performance.md` — cache tuning, `-N`/`-O`/`-C`/`-B`, scheduled refresh
+  - `docs/installation.md` — uv / pip / prebuilt `.exe`
+  - `docs/building.md` — CI workflow + local Windows build
+  - `docs/file-formats.md` — exifread vs hachoir routing matrix
+- README logo now uses an `<img width="150">` tag so it renders at a sane
+  size on GitHub.
+- Smaller `doc/logo.png` asset (38 KB → 9 KB).
+
+### Added
+- **CHANGELOG.md** in Keep-a-Changelog format, covering every release from
+  v1.3.x through current with proper "Added / Changed / Fixed / Removed"
+  sections and tag-comparison links to GitHub.
+
+### Removed
+- 12 stale files (~12 MB freed): `main.py` (only printed "Hello"),
+  `MANIFEST.in`, `pyinstallerconfig.json` (with a hardcoded path from
+  another machine), `pm.png`, the old v2.0.1 `dist/op.exe` (superseded by
+  GitHub Releases), three v1.x test scaffold files (`test_simple.py`,
+  `test_integration.py`, `run_tests.py` — coverage already duplicated in
+  `test_op.py` and `test_v210.py`), three unreferenced log screenshots, and
+  `doc/cassette.tape`. Test suite dropped from 71 → 63 with **zero**
+  coverage loss.
+- `requirements.md` — superseded by `CHANGELOG.md`.
+
+### Internal
+- `dist/` added to `.gitignore` so future local PyInstaller builds can't be
+  committed by accident.
+- No code changes to `op.py` behavior in this release.
+
+---
+
 ## [2.2.2] — 2026-05-11
 
 ### Fixed
@@ -259,8 +301,9 @@ the demotion / retention action for every conflict.
 
 ---
 
-[Unreleased]: https://github.com/johnzastrow/orgphoto/compare/v2.2.2...HEAD
-[2.2.2]: https://github.com/johnzastrow/orgphoto/releases/tag/v2.2.2
+[Unreleased]: https://github.com/johnzastrow/orgphoto/compare/v2.2.3...HEAD
+[2.2.3]: https://github.com/johnzastrow/orgphoto/compare/v2.2.2...v2.2.3
+[2.2.2]: https://github.com/johnzastrow/orgphoto/compare/v2.2.1...v2.2.2
 [2.2.1]: https://github.com/johnzastrow/orgphoto/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/johnzastrow/orgphoto/compare/v2.1.1...v2.2.0
 [2.1.1]: https://github.com/johnzastrow/orgphoto/compare/v2.1.0...v2.1.1

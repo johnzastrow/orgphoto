@@ -149,7 +149,14 @@ logging.getLogger("exifread").setLevel(logging.CRITICAL)
 #          handle. Linux didn't surface this because it allows deleting open files;
 #          Windows (WinError 32) would block tempdir cleanup and any later attempt
 #          to remove the cache file. No behavior change on the happy path.
-__version__ = "2.2.2"
+# v2.2.3 - Docs-only release. README slimmed from 1063 to <70 lines; deep-dive
+#          topics moved into docs/ (usage, examples, duplicates, master selection,
+#          performance, install, build, file formats). Added CHANGELOG.md in
+#          Keep-a-Changelog format. Removed 12 stale files (~12 MB freed): old
+#          main.py, MANIFEST.in, pyinstallerconfig.json, pm.png, the v2.0.1
+#          dist/op.exe, v1.x test scaffolding, and unreferenced screenshots.
+#          Smaller doc/logo.png and constrained-width README rendering.
+__version__ = "2.2.3"
 myversion = f"v. {__version__} 2026-05-11"
 
 
