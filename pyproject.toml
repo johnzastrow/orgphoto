@@ -5,7 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "exifread>=3.0.0",
+    "exifread>=3.5.1",
     "hachoir>=3.3.0",
     "ruff>=0.14.0",
 ]
