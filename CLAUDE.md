@@ -151,9 +151,16 @@ uv run op.py -m -D interactive -j jpg source/ target/  # User can choose redirec
    - MINOR: New features, significant enhancements (like new default behavior)
    - PATCH: Bug fixes, minor improvements, documentation updates
 
-**Current version: 2.2.4** (as of 2026-05-12)
+**Current version: 2.2.5** (as of 2026-05-12)
 
 **Recent version history:**
+- v2.2.5: Cross-platform fix for the v2.2.4 master-score guard. Linux's
+  `mktime()` accepts pre-1970 datetimes and returns a negative timestamp, so
+  the `try/except OSError` guard from v2.2.4 never fired there — a
+  sub-threshold date would *win* the "oldest wins" master tiebreaker instead
+  of losing it. CI caught this on the Linux test job. `calculate_master_score`
+  now checks `< _MIN_REASONABLE_DATE` before calling `.timestamp()` so
+  behavior is identical on both platforms.
 - v2.2.4: Fix crash on files with bogus pre-1970 metadata dates. QuickTime/MP4
   files whose `creation_time` atom is zero parse to 1904-01-01, which causes
   `datetime.timestamp()` to raise `OSError 22 (EINVAL)` on Windows from the

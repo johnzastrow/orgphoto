@@ -166,7 +166,16 @@ logging.getLogger("exifread").setLevel(logging.CRITICAL)
 #          wraps `.timestamp()` in try/except OSError as a defensive guard, so
 #          any pre-1970 date that slips past upstream sanitation no longer
 #          crashes master selection — it just loses the date tiebreaker.
-__version__ = "2.2.4"
+# v2.2.5 - Cross-platform fix for v2.2.4 master-score guard. Linux's mktime()
+#          accepts pre-1970 datetimes and returns a negative timestamp, so the
+#          try/except OSError branch never fired there — a sub-threshold date
+#          would yield a real (very negative) timestamp and *win* the "oldest
+#          wins" master tiebreaker instead of losing it. CI caught this when
+#          the v2.2.4 push failed Linux tests. `calculate_master_score` now
+#          checks `creation_date < _MIN_REASONABLE_DATE` before calling
+#          `.timestamp()`, so the sentinel-on-untrusted-date behavior is
+#          identical on both platforms.
+__version__ = "2.2.5"
 myversion = f"v. {__version__} 2026-05-12"
 
 
@@ -1091,14 +1100,19 @@ def calculate_master_score(
     filename = file_path.name
     has_dup_keywords = has_duplicate_keywords(filename)
     filename_length = len(filename)
-    # Defensive: pre-1970 datetimes raise OSError 22 from mktime() on Windows.
-    # Upstream extractors drop such dates, but if one slips through (e.g. a
-    # filesystem mtime set to the Windows zero-epoch 1601), don't crash master
-    # selection — just make this file lose the date tiebreaker.
-    try:
-        date_timestamp = creation_date.timestamp()
-    except (OSError, OverflowError, ValueError):
+    # If a sub-threshold date slips past upstream sanitation, treat it as
+    # untrusted: assign a sentinel so the file loses the "oldest wins" date
+    # tiebreaker rather than getting picked as master based on a bogus 1904
+    # timestamp. Checked before `.timestamp()` so behavior is identical on
+    # Windows (where pre-1970 raises OSError 22 from mktime()) and Linux
+    # (where pre-1970 silently returns a negative timestamp).
+    if creation_date < _MIN_REASONABLE_DATE:
         date_timestamp = float("inf")
+    else:
+        try:
+            date_timestamp = creation_date.timestamp()
+        except (OSError, OverflowError, ValueError):
+            date_timestamp = float("inf")
 
     return (has_dup_keywords, filename_length, date_timestamp)
 

@@ -17,6 +17,23 @@ Nothing in flight. Open issues and PRs:
 
 ---
 
+## [2.2.5] — 2026-05-12
+
+### Fixed
+- **Cross-platform fix for the v2.2.4 master-score guard.** Linux's `mktime()`
+  accepts pre-1970 datetimes and returns a negative timestamp, so the
+  `try/except OSError` guard added in v2.2.4 never fired there. A
+  sub-threshold date that slipped past upstream sanitation would yield a
+  real (very negative) `.timestamp()` and *win* the "oldest wins" master
+  tiebreaker instead of losing it. CI caught this when the v2.2.4 push
+  failed Linux tests in `TestBogusMetadataDates`. `calculate_master_score`
+  now checks `creation_date < _MIN_REASONABLE_DATE` *before* calling
+  `.timestamp()`, so sub-threshold dates yield the `float('inf')` sentinel
+  on both Windows and Linux. v2.2.4 was tagged in git history but never
+  produced a working build artifact.
+
+---
+
 ## [2.2.4] — 2026-05-12
 
 ### Fixed
