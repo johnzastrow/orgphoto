@@ -131,6 +131,114 @@ class TestArgumentValidation(unittest.TestCase):
         self.assertEqual(result_mixed, expected_mixed)
 
 
+class TestBogusMetadataDates(unittest.TestCase):
+    """Regression tests for v2.2.4: bogus pre-1970 metadata dates must not crash."""
+
+    def setUp(self):
+        self.test_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.test_dir)
+        self.logger = logging.getLogger("test_bogus_dates")
+        self.logger.addHandler(logging.NullHandler())
+
+    def test_is_plausible_creation_date_rejects_quicktime_epoch(self):
+        # QuickTime/MP4 atoms with a zero creation_time parse to 1904-01-01
+        self.assertFalse(op._is_plausible_creation_date(datetime(1904, 1, 1)))
+
+    def test_is_plausible_creation_date_rejects_unix_epoch(self):
+        # A cleared mtime field parses to 1970-01-01, which is before our threshold
+        self.assertFalse(op._is_plausible_creation_date(datetime(1970, 1, 1)))
+
+    def test_is_plausible_creation_date_accepts_real_photo_date(self):
+        self.assertTrue(
+            op._is_plausible_creation_date(datetime(2022, 6, 15, 14, 30, 0))
+        )
+
+    def test_is_plausible_creation_date_rejects_non_datetime(self):
+        # Hachoir occasionally returns date or string types; we only trust datetime
+        self.assertFalse(op._is_plausible_creation_date(None))
+        self.assertFalse(op._is_plausible_creation_date("2022-06-15"))
+
+    def test_get_created_date_drops_bogus_quicktime_date(self):
+        # Stub extractMetadata to return a metadata object whose creation_date
+        # is the 1904 epoch — get_created_date should drop it and return None.
+        class FakeMetadata:
+            def getValues(self, key):
+                return [datetime(1904, 1, 1)] if key == "creation_date" else []
+
+        class FakeParser:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        fake = self.test_dir / "fake.mp4"
+        fake.write_bytes(b"not a real mp4")
+
+        with (
+            patch("op.createParser", return_value=FakeParser()),
+            patch("op.extractMetadata", return_value=FakeMetadata()),
+        ):
+            result = op.get_created_date(fake, self.logger)
+
+        self.assertIsNone(result)
+
+    def test_get_created_date_keeps_plausible_date(self):
+        class FakeMetadata:
+            def getValues(self, key):
+                return (
+                    [datetime(2022, 6, 15, 14, 30, 0)] if key == "creation_date" else []
+                )
+
+        class FakeParser:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        fake = self.test_dir / "ok.mp4"
+        fake.write_bytes(b"not a real mp4")
+
+        with (
+            patch("op.createParser", return_value=FakeParser()),
+            patch("op.extractMetadata", return_value=FakeMetadata()),
+        ):
+            result = op.get_created_date(fake, self.logger)
+
+        self.assertEqual(result, datetime(2022, 6, 15, 14, 30, 0))
+
+    def test_calculate_master_score_handles_pre_epoch_date(self):
+        # The core regression: a 1904 date must not crash with OSError on Windows.
+        path = self.test_dir / "IMG_0061.MP4"
+        path.touch()
+        score = op.calculate_master_score(path, datetime(1904, 1, 1), self.logger)
+        # Score is (has_dup_keywords, filename_length, date_timestamp).
+        # Date component should be the sentinel (float('inf')) so this file
+        # *loses* the "oldest wins" tiebreaker rather than winning it.
+        self.assertEqual(len(score), 3)
+        self.assertEqual(score[2], float("inf"))
+
+    def test_calculate_master_score_pre_epoch_loses_to_real_date(self):
+        # End-to-end: a bogus 1904 file must not be selected master over a real one.
+        real_path = self.test_dir / "vacation.MP4"
+        real_path.touch()
+        bogus_path = self.test_dir / "IMG_0061.MP4"
+        bogus_path.touch()
+
+        real_score = op.calculate_master_score(
+            real_path, datetime(2022, 6, 15), self.logger
+        )
+        bogus_score = op.calculate_master_score(
+            bogus_path, datetime(1904, 1, 1), self.logger
+        )
+        # Sort ascending; the real-dated file should come first (better master).
+        ranked = sorted(
+            [("bogus", bogus_score), ("real", real_score)], key=lambda x: x[1]
+        )
+        self.assertEqual(ranked[0][0], "real")
+
+
 class TestIntegration(unittest.TestCase):
     """Integration tests for full workflow scenarios."""
 

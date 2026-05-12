@@ -133,7 +133,7 @@ uv run op.py -m -D interactive -j jpg source/ target/  # User can choose redirec
 
 - `op.py` - Main application (CLI parsing, file processing, EXIF extraction, cache)
 - `op.spec` - PyInstaller specification file for the Windows build
-- `test_op.py`, `test_v210.py` - pytest test suites (63 tests as of v2.2.2)
+- `test_op.py`, `test_v210.py` - pytest test suites (71 tests as of v2.2.4)
 - `.github/workflows/build.yml` - CI: tests on Linux + Windows, builds .exe, attaches to GitHub Release on tag push
 - `docs/` - Topic deep-dives (usage, performance, duplicate handling, etc.)
 - `testing/` - Sample photo fixtures for manual / exploratory testing
@@ -151,9 +151,17 @@ uv run op.py -m -D interactive -j jpg source/ target/  # User can choose redirec
    - MINOR: New features, significant enhancements (like new default behavior)
    - PATCH: Bug fixes, minor improvements, documentation updates
 
-**Current version: 2.2.3** (as of 2026-05-11)
+**Current version: 2.2.4** (as of 2026-05-12)
 
 **Recent version history:**
+- v2.2.4: Fix crash on files with bogus pre-1970 metadata dates. QuickTime/MP4
+  files whose `creation_time` atom is zero parse to 1904-01-01, which causes
+  `datetime.timestamp()` to raise `OSError 22 (EINVAL)` on Windows from the
+  underlying `mktime()` call. `get_created_date` and `get_created_date_fast`
+  now drop dates before `_MIN_REASONABLE_DATE` (1990-01-01) so the caller
+  falls back to filesystem mtime, and `calculate_master_score` wraps the
+  `.timestamp()` call in `try/except OSError` as a defensive guard. 8 new
+  regression tests in `TestBogusMetadataDates`.
 - v2.2.3: Docs-only release. README slimmed from 1063 → <70 lines with
   deep-dive content moved into 8 topic files under `docs/`. Added proper
   Keep-a-Changelog `CHANGELOG.md`. Removed 12 stale files (~12 MB freed):

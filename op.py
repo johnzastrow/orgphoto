@@ -156,8 +156,18 @@ logging.getLogger("exifread").setLevel(logging.CRITICAL)
 #          main.py, MANIFEST.in, pyinstallerconfig.json, pm.png, the v2.0.1
 #          dist/op.exe, v1.x test scaffolding, and unreferenced screenshots.
 #          Smaller doc/logo.png and constrained-width README rendering.
-__version__ = "2.2.3"
-myversion = f"v. {__version__} 2026-05-11"
+# v2.2.4 - Fix crash on files with bogus pre-1970 metadata dates. QuickTime/MP4
+#          files whose `creation_time` atom is zero parse to 1904-01-01, and
+#          `datetime.timestamp()` on Windows raises OSError 22 (EINVAL) for any
+#          pre-epoch datetime via the underlying mktime(). Two-part fix:
+#          (1) `get_created_date` and `get_created_date_fast` now drop dates
+#          before 1990-01-01 (`_MIN_REASONABLE_DATE`) and return None, so the
+#          caller falls back to filesystem mtime; (2) `calculate_master_score`
+#          wraps `.timestamp()` in try/except OSError as a defensive guard, so
+#          any pre-1970 date that slips past upstream sanitation no longer
+#          crashes master selection — it just loses the date tiebreaker.
+__version__ = "2.2.4"
+myversion = f"v. {__version__} 2026-05-12"
 
 
 def calculate_file_hash(file_path: Path, algorithm: str = "sha256") -> str:
@@ -797,6 +807,23 @@ def set_up_logging(destination_dir: Path, verbose: bool):
     return logger
 
 
+# Earliest creation date we trust from container metadata. Anything before this
+# is almost certainly a default value rather than a real photo date:
+#   - QuickTime/MP4 use a 1904 epoch; a zero `creation_time` atom parses as
+#     1904-01-01, which is the most common cause of bogus dates in practice.
+#   - Unix zero-epoch (1970-01-01) appears in files whose tooling cleared the
+#     timestamp field.
+#   - Mass-market digital photography did not really start until the mid-1990s.
+# Returning None for sub-threshold dates makes the caller fall back to the
+# filesystem mtime, which is the right answer for these bogus cases.
+_MIN_REASONABLE_DATE = datetime.datetime(1990, 1, 1)
+
+
+def _is_plausible_creation_date(value) -> bool:
+    """True iff *value* is a datetime at or after _MIN_REASONABLE_DATE."""
+    return isinstance(value, datetime.datetime) and value >= _MIN_REASONABLE_DATE
+
+
 def get_created_date(filename: Path, logger):
     """
     Attempt to extract the creation date from the file's EXIF metadata.
@@ -810,6 +837,8 @@ def get_created_date(filename: Path, logger):
 
     This function uses hachoir to parse the file and extract EXIF metadata.
     It specifically looks for the 'creation_date' metadata field.
+    Dates earlier than _MIN_REASONABLE_DATE are rejected as bogus (typically
+    QuickTime 1904-epoch zero values) so the caller falls back to FS mtime.
     """
     created_date = None
 
@@ -844,6 +873,13 @@ def get_created_date(filename: Path, logger):
                 created_date = cd[0]
     except Exception as e:
         logger.debug(f"Error during metadata extraction for {filename}: {e}")
+
+    if created_date is not None and not _is_plausible_creation_date(created_date):
+        logger.debug(
+            f"Rejecting bogus metadata date {created_date!r} from {filename} "
+            f"(before {_MIN_REASONABLE_DATE.date()})"
+        )
+        return None
 
     return created_date
 
@@ -906,12 +942,21 @@ def get_created_date_fast(filename: Path, logger):
                 if tag:
                     date_str = str(tag)
                     try:
-                        return datetime.datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
+                        parsed = datetime.datetime.strptime(
+                            date_str, "%Y:%m:%d %H:%M:%S"
+                        )
                     except ValueError:
                         logger.debug(
                             f"exifread: unparseable date '{date_str}' in {filename}"
                         )
                         continue
+                    if not _is_plausible_creation_date(parsed):
+                        logger.debug(
+                            f"exifread: rejecting bogus date '{date_str}' in "
+                            f"{filename} (before {_MIN_REASONABLE_DATE.date()})"
+                        )
+                        continue
+                    return parsed
 
             logger.debug(f"exifread: no date tags found in {filename}")
         except Exception as e:
@@ -1046,7 +1091,14 @@ def calculate_master_score(
     filename = file_path.name
     has_dup_keywords = has_duplicate_keywords(filename)
     filename_length = len(filename)
-    date_timestamp = creation_date.timestamp()
+    # Defensive: pre-1970 datetimes raise OSError 22 from mktime() on Windows.
+    # Upstream extractors drop such dates, but if one slips through (e.g. a
+    # filesystem mtime set to the Windows zero-epoch 1601), don't crash master
+    # selection — just make this file lose the date tiebreaker.
+    try:
+        date_timestamp = creation_date.timestamp()
+    except (OSError, OverflowError, ValueError):
+        date_timestamp = float("inf")
 
     return (has_dup_keywords, filename_length, date_timestamp)
 
@@ -2062,7 +2114,7 @@ def main(args=None):
     start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info("=" * 80)
     logger.info("orgphoto - Photo Organization Tool")
-    logger.info(f"Version: {__version__} (Release Date: 2026-05-11)")
+    logger.info(f"Version: {__version__} (Release Date: 2026-05-12)")
     logger.info(f"Session Started: {start_time}")
     logger.info("=" * 80)
     logger.debug("Command-line options: %s", vars(parsed_args))

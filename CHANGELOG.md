@@ -17,6 +17,35 @@ Nothing in flight. Open issues and PRs:
 
 ---
 
+## [2.2.4] — 2026-05-12
+
+### Fixed
+- **Crash on files with bogus pre-1970 metadata dates** (e.g. QuickTime/MP4
+  files whose `creation_time` atom is zero, which parses to 1904-01-01).
+  `calculate_master_score()` called `datetime.timestamp()`, which on Windows
+  delegates to `mktime()` and raises `OSError [Errno 22]` for any pre-epoch
+  datetime — taking down the whole move/copy job mid-batch. Reported during a
+  real `-m -D redirect` run on a 166k-file library that contained at least
+  one MP4 with a zero `creation_time` atom.
+
+### Changed
+- `get_created_date()` and `get_created_date_fast()` now reject metadata
+  creation dates earlier than `_MIN_REASONABLE_DATE` (1990-01-01) and return
+  None, so the caller falls back to filesystem mtime. This catches the
+  common QuickTime 1904-epoch case as well as Unix-epoch (1970-01-01) zero
+  values without requiring per-format special-casing.
+- `calculate_master_score()` wraps `.timestamp()` in `try/except OSError`
+  (and `OverflowError`/`ValueError`) as a defensive guard. Any pre-1970
+  date that slips past upstream sanitation now yields a `float('inf')`
+  sentinel — the file loses the date tiebreaker instead of crashing the run.
+
+### Internal
+- 8 new regression tests in `TestBogusMetadataDates` (`test_op.py`) covering
+  the plausibility helper, both date extractors, and `calculate_master_score`
+  with 1904 dates. Suite is now 71 tests (was 63).
+
+---
+
 ## [2.2.3] — 2026-05-11
 
 ### Changed
