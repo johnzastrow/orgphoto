@@ -73,19 +73,29 @@ Datapoints from actual `-O -B` runs to help calibrate the estimates table:
   → ~6,400 files/sec (stat-only, no content reads)
 ```
 
-**Spinning HDD, 200k-file library** (`E:\Pictures`, mid-scan progress line):
+**Spinning HDD, 166k-file library** (`E:\Pictures`):
 
 ```
+# First run — full cold hash
 > op -O -B E:\Pictures
 Building hash cache of target directory...
-  6000 files scanned (0 cached, 6000 hashed) [275.1s]
-  → ~22 files/sec (cold hash)
+  Hash cache ready: 166285 files (0 cached, 166285 hashed) in 14365.1s
+  Elapsed time        : 14365.141s
+  → ~11.6 files/sec averaged across the full run (~4 hours total)
+
+# Second run — warm cache (1 new file added since cold build)
+> op -O -B E:\Pictures
+Building hash cache of target directory...
+  Hash cache ready: 166286 files (166284 cached, 2 hashed) in 28.9s
+  Cache hit rate      : 100.0%
+  → ~5,750 files/sec (stat-only walk)
 ```
 
 Takeaways:
-- **HDD is ~2.3× slower than NVMe for cold hashing** (~22 vs ~51 files/sec on the test boxes above). Extrapolated, a 200k-file first build runs ~2.5 hours on HDD vs ~1 hour on NVMe.
-- **Warm-cache walks are ~125× faster than cold builds on NVMe.** Once the cache is hot, throughput is dominated by directory traversal and `stat()` rather than reading file contents, so even huge trees refresh in seconds.
-- On warm-cache NVMe runs you may see `1 freshly hashed` — that's an unrelated file whose mtime drifted between runs, not the cache DB itself (which is already excluded from the walk).
+- **HDD is ~4-5× slower than NVMe for cold hashing** (~12 vs ~51 files/sec on the test boxes above). A 166k-file first build took ~4 hours on HDD; an equivalent NVMe build would run closer to ~1 hour.
+- **Early-scan throughput overstates the full-run average.** A mid-scan checkpoint on this same HDD showed ~22 files/sec at 6000 files, but the full run averaged ~11.6 files/sec — large media files later in the tree (and seek pressure on a heavily-populated HDD) drag the steady-state rate down. Plan from the full-run number, not the early progress line.
+- **Warm-cache walks are ~495× faster than cold builds on HDD** (~5,750 vs ~11.6 files/sec), and ~125× faster on NVMe. Once the cache is hot, throughput is dominated by directory traversal and `stat()` rather than reading file contents, so even huge HDD trees refresh in ~30 seconds — nearly closing the gap with NVMe (~6,400 files/sec warm).
+- On warm-cache runs you may see a small number of `freshly hashed` files — those are real files whose mtime drifted since the last run (e.g., a fresh import), not the cache DB itself (which is excluded from the walk).
 
 ### Storage cost
 
