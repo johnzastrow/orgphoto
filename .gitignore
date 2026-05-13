@@ -36,3 +36,6 @@ nosetests.xml
 .pydevproject
 /photocopy/venv
 
+# Local diagnostic / audit artifacts (not project code)
+/audit_results/
+
