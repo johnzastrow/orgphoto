@@ -7,12 +7,12 @@ requires-python = ">=3.13"
 dependencies = [
     "exifread>=3.5.1",
     "hachoir>=3.3.0",
-    "ruff>=0.15.18",
+    "ruff>=0.16.6",
 ]
 
 [dependency-groups]
 dev = [
     "pyinstaller>=6.21.0",
     "pytest>=9.1.1",
-    "ruff>=0.15.18",
+    "ruff>=0.16.6",
 ]
