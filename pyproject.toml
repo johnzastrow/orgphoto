@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "exifread>=3.5.1",
-    "hachoir>=3.3.0",
+    "hachoir>=3.4.0",
     "ruff>=0.15.18",
 ]
 
