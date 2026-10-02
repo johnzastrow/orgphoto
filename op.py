@@ -175,8 +175,8 @@ logging.getLogger("exifread").setLevel(logging.CRITICAL)
 #          checks `creation_date < _MIN_REASONABLE_DATE` before calling
 #          `.timestamp()`, so the sentinel-on-untrusted-date behavior is
 #          identical on both platforms.
-__version__ = "2.2.5"
-myversion = f"v. {__version__} 2026-05-12"
+__version__ = "2.2.6"
+myversion = f"v. {__version__} 2026-10-02"
 
 
 def calculate_file_hash(file_path: Path, algorithm: str = "sha256") -> str:
@@ -1636,9 +1636,6 @@ def moveFile(
     or file system), creates a destination folder based on the date, and
     then copies or moves the file to that destination.
     """
-    # Initialize duplicate action tracking
-    duplicate_action = ""
-
     # Construct full path to the file
     fullpath = folder / filename
 

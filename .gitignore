@@ -39,3 +39,6 @@ nosetests.xml
 # Local diagnostic / audit artifacts (not project code)
 /audit_results/
 
+
+# uv virtual environment (machine-specific)
+.venv/
