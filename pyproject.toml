@@ -6,13 +6,19 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "exifread>=3.5.1",
-    "hachoir>=3.3.0",
-    "ruff>=0.15.18",
+    "hachoir>=3.4.0",
+    "ruff>=0.16.8",
 ]
 
 [dependency-groups]
 dev = [
-    "pyinstaller>=6.21.0",
+    "pyinstaller>=6.22.3",
     "pytest>=9.1.1",
-    "ruff>=0.15.18",
+    "ruff>=0.16.8",
 ]
+
+[tool.ruff.lint]
+# Pin the rule set rather than inheriting ruff's defaults, which widened in
+# 0.16 (about 90 new findings with no code change). Adopting more rules is
+# its own change.
+select = ["E4", "E7", "E9", "F"]

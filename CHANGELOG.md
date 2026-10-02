@@ -17,6 +17,23 @@ Nothing in flight. Open issues and PRs:
 
 ---
 
+## [2.2.6] — 2026-10-02
+
+### Changed
+- **Dependencies:** hachoir 3.4.0, PyInstaller 6.22.3, ruff 0.16, pytest 9.1;
+  GitHub Actions checkout v7, setup-uv v7, upload-artifact v7,
+  download-artifact v8, action-gh-release v3 (Dependabot #24-#28, #36-#38).
+- `uv.lock` is regenerated; it had drifted from `pyproject.toml`, so CI's
+  `uv sync --frozen` was not installing what pyproject asked for. Dependabot
+  now uses the `uv` ecosystem, which updates the lock with each bump.
+- ruff's rule selection is pinned (`E4`, `E7`, `E9`, `F`) so ruff 0.16's wider
+  defaults do not fail CI.
+
+### Fixed
+- Removed an unused `duplicate_action` variable in `process_file` (ruff F841).
+
+---
+
 ## [2.2.5] — 2026-05-12
 
 ### Fixed
