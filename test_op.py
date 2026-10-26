@@ -11,9 +11,10 @@ import tempfile
 import shutil
 import hashlib
 import logging
+import struct
 from pathlib import Path
 from unittest.mock import patch
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Import the module under test
 import op
@@ -237,6 +238,98 @@ class TestBogusMetadataDates(unittest.TestCase):
             [("bogus", bogus_score), ("real", real_score)], key=lambda x: x[1]
         )
         self.assertEqual(ranked[0][0], "real")
+
+
+def _quicktime_bytes(seconds_since_1904, version=0, mdat_first=True):
+    """Build a minimal QuickTime file: ftyp, optional mdat, then moov/mvhd."""
+
+    def atom(kind, body):
+        return struct.pack(">I4s", 8 + len(body), kind) + body
+
+    if version == 1:
+        times = struct.pack(">QQ", seconds_since_1904, seconds_since_1904)
+    else:
+        times = struct.pack(">II", seconds_since_1904, seconds_since_1904)
+    mvhd = atom(b"mvhd", bytes([version, 0, 0, 0]) + times + b"\x00" * 80)
+    moov = atom(b"moov", atom(b"udta", b"") + mvhd)
+    ftyp = atom(b"ftyp", b"qt  \x00\x00\x00\x00qt  ")
+    mdat = atom(b"mdat", b"\x00" * 64)
+    return ftyp + (mdat + moov if mdat_first else moov + mdat)
+
+
+class TestQuickTimeCreationDate(unittest.TestCase):
+    """v2.3.0: recording dates read from the mvhd atom when hachoir finds none."""
+
+    # 2026-10-10 05:49:00 UTC, seconds since the 1904 QuickTime epoch
+    RECORDED_UTC = datetime(2026, 10, 10, 5, 49, 0)
+    SECONDS = int((RECORDED_UTC - datetime(1904, 1, 1)).total_seconds())
+
+    def setUp(self):
+        self.test_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.test_dir)
+        self.logger = logging.getLogger("test_quicktime_dates")
+        self.logger.addHandler(logging.NullHandler())
+
+    def expected_local(self):
+        return (
+            self.RECORDED_UTC.replace(tzinfo=timezone.utc)
+            .astimezone()
+            .replace(tzinfo=None)
+        )
+
+    def write(self, name, data):
+        path = self.test_dir / name
+        path.write_bytes(data)
+        return path
+
+    def test_reads_mvhd_after_media_data(self):
+        path = self.write("IMG_6283.MOV", _quicktime_bytes(self.SECONDS))
+        result = op.get_quicktime_created_date(path, self.logger)
+        self.assertEqual(result, self.expected_local())
+
+    def test_reads_mvhd_before_media_data(self):
+        path = self.write("a.mp4", _quicktime_bytes(self.SECONDS, mdat_first=False))
+        result = op.get_quicktime_created_date(path, self.logger)
+        self.assertEqual(result, self.expected_local())
+
+    def test_reads_version_1_mvhd(self):
+        path = self.write("v1.mov", _quicktime_bytes(self.SECONDS, version=1))
+        result = op.get_quicktime_created_date(path, self.logger)
+        self.assertEqual(result, self.expected_local())
+
+    def test_zero_creation_time_is_rejected(self):
+        # A zero mvhd time is the 1904 epoch; must return None, not crash
+        path = self.write("zero.mov", _quicktime_bytes(0))
+        self.assertIsNone(op.get_quicktime_created_date(path, self.logger))
+
+    def test_non_quicktime_file_returns_none(self):
+        path = self.write("junk.mov", b"definitely not a movie")
+        self.assertIsNone(op.get_quicktime_created_date(path, self.logger))
+
+    def test_truncated_file_returns_none(self):
+        data = _quicktime_bytes(self.SECONDS)
+        # Cut inside mvhd's timestamp: 80 padding bytes + 5 of the 8 time bytes
+        path = self.write("cut.mov", data[:-85])
+        self.assertIsNone(op.get_quicktime_created_date(path, self.logger))
+
+    def test_get_created_date_falls_back_when_hachoir_cannot_parse(self):
+        # The iPhone case: hachoir returns no parser at all
+        path = self.write("IMG_6364.MOV", _quicktime_bytes(self.SECONDS))
+        with patch("op.createParser", return_value=None):
+            result = op.get_created_date(path, self.logger)
+        self.assertEqual(result, self.expected_local())
+
+    def test_fast_path_falls_back_for_video(self):
+        path = self.write("IMG_6364.MOV", _quicktime_bytes(self.SECONDS))
+        with patch("op.createParser", return_value=None):
+            result = op.get_created_date_fast(path, self.logger)
+        self.assertEqual(result, self.expected_local())
+
+    def test_no_fallback_for_non_video_extension(self):
+        # A JPEG name with QuickTime bytes must not pick up the mvhd date
+        path = self.write("photo.jpg", _quicktime_bytes(self.SECONDS))
+        with patch("op.createParser", return_value=None):
+            self.assertIsNone(op.get_created_date(path, self.logger))
 
 
 class TestIntegration(unittest.TestCase):

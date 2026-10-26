@@ -59,14 +59,17 @@ exe (MS Windows PE)
 ### Video
 asf (WMV/WMA), flv, mov (QuickTime), mpeg_ts (.ts), mpeg_video, mp4
 
+### QuickTime fallback *(v2.3.0+)*
+hachoir cannot parse many modern iPhone `.MOV` files ("Unknown MOV file type"). For `.mov`, `.mp4`, `.m4v` and `.3gp`, when hachoir finds no date, orgphoto reads the recording time from the `moov/mvhd` atom itself. That time is stored in UTC and is converted to local time, like photo EXIF dates.
+
 ---
 
 ## How orgphoto picks a date
 
 For each file:
 
-1. Try the fast/full EXIF reader for the extension (above).
-2. If a `DateTimeOriginal` / `DateTime` / equivalent EXIF tag is found → use it.
+1. Try the fast/full EXIF reader for the extension (above), then the QuickTime fallback for video containers.
+2. If a `DateTimeOriginal` / `DateTime` / equivalent EXIF tag (or video recording time) is found → use it.
 3. Else:
    - `-x yes` (default): skip the file.
    - `-x no`: fall back to the filesystem modification date.

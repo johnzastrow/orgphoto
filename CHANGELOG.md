@@ -17,6 +17,24 @@ Nothing in flight. Open issues and PRs:
 
 ---
 
+## [2.3.0] — 2026-10-26
+
+### Added
+- **Video recording dates that hachoir misses.** hachoir rejects many modern
+  iPhone `.MOV` files outright ("Unknown MOV file type"), so they had no
+  metadata date and the default `-x yes` skipped them on every run; with
+  `-x no` they were filed by the file's modified date, which on a sync share
+  is the upload date, not the recording date. `get_created_date` now falls
+  back to reading the QuickTime `moov/mvhd` atom directly for `.mov`, `.mp4`,
+  `.m4v` and `.3gp` whenever hachoir finds no plausible date. Only atom
+  headers are read, so it stays fast for large videos. The atom's UTC time is
+  converted to local time, matching the local-time EXIF dates of photos, so a
+  video recorded in the evening is filed under the day it was recorded.
+  Zero/1904 times are still rejected as bogus. Files hachoir already dates
+  correctly are unaffected.
+
+---
+
 ## [2.2.6] — 2026-10-02
 
 ### Changed

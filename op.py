@@ -81,6 +81,7 @@ from pathlib import Path
 import os
 import hashlib
 import sqlite3
+import struct
 import time
 
 # Optional fast EXIF extraction (header-only, much faster than hachoir for images)
@@ -175,8 +176,13 @@ logging.getLogger("exifread").setLevel(logging.CRITICAL)
 #          checks `creation_date < _MIN_REASONABLE_DATE` before calling
 #          `.timestamp()`, so the sentinel-on-untrusted-date behavior is
 #          identical on both platforms.
-__version__ = "2.2.6"
-myversion = f"v. {__version__} 2026-10-02"
+# v2.3.0 - Read video recording dates that hachoir misses. hachoir rejects many
+#          modern iPhone .MOV files ("Unknown MOV file type"), so they had no
+#          date and `-x yes` skipped them on every run. `get_created_date` now
+#          falls back to reading the QuickTime `moov/mvhd` atom directly for
+#          .mov/.mp4/.m4v/.3gp, converting its UTC time to local time.
+__version__ = "2.3.0"
+myversion = f"v. {__version__} 2026-10-26"
 
 
 def calculate_file_hash(file_path: Path, algorithm: str = "sha256") -> str:
@@ -833,9 +839,79 @@ def _is_plausible_creation_date(value) -> bool:
     return isinstance(value, datetime.datetime) and value >= _MIN_REASONABLE_DATE
 
 
+# Video containers whose QuickTime `moov/mvhd` header we read directly when
+# hachoir finds no date. hachoir rejects many modern iPhone .MOV files outright
+# ("Unknown MOV file type"), so their recording date was never found and
+# `-x yes` skipped them every run.
+_QUICKTIME_EXTENSIONS = {".mov", ".mp4", ".m4v", ".3gp"}
+_QUICKTIME_EPOCH = datetime.datetime(1904, 1, 1)
+
+
+def _iter_quicktime_atoms(f, start, end):
+    """Yield (type, body_start, atom_end) for each QuickTime atom in [start, end)."""
+    pos = start
+    while pos + 8 <= end:
+        f.seek(pos)
+        size, kind = struct.unpack(">I4s", f.read(8))
+        header = 8
+        if size == 1:  # 64-bit size follows the type
+            size = struct.unpack(">Q", f.read(8))[0]
+            header = 16
+        elif size == 0:  # atom runs to the end of the file
+            size = end - pos
+        if size < header:
+            return  # corrupt size; stop instead of looping forever
+        yield kind, pos + header, pos + size
+        pos += size
+
+
+def get_quicktime_created_date(filename: Path, logger):
+    """
+    Read the recording time from a QuickTime/MP4 `moov/mvhd` atom.
+
+    Only the atom headers are read, so this is cheap even for large videos
+    whose `moov` atom sits after the media data. The atom stores UTC seconds
+    since 1904; the result is converted to naive local time to match the
+    local-time dates exifread returns for photos, so a video recorded in the
+    evening is filed under the day it was recorded.
+
+    Returns:
+        datetime.datetime or None: Recording time, or None if absent/bogus
+    """
+    try:
+        with open(filename, "rb") as f:
+            end = os.fstat(f.fileno()).st_size
+            for kind, body, stop in _iter_quicktime_atoms(f, 0, end):
+                if kind != b"moov":
+                    continue
+                for kind2, body2, _ in _iter_quicktime_atoms(f, body, stop):
+                    if kind2 != b"mvhd":
+                        continue
+                    f.seek(body2)
+                    version = f.read(4)[0]  # version byte + 3 flag bytes
+                    fmt = ">Q" if version == 1 else ">I"
+                    (seconds,) = struct.unpack(fmt, f.read(struct.calcsize(fmt)))
+                    utc = _QUICKTIME_EPOCH + datetime.timedelta(seconds=seconds)
+                    # Check before converting: astimezone() on a pre-1970
+                    # datetime raises OSError on Windows (see v2.2.4).
+                    if not _is_plausible_creation_date(utc):
+                        logger.debug(
+                            f"mvhd: rejecting bogus date {utc!r} in {filename}"
+                        )
+                        return None
+                    return (
+                        utc.replace(tzinfo=datetime.timezone.utc)
+                        .astimezone()
+                        .replace(tzinfo=None)
+                    )
+    except (OSError, struct.error, IndexError, OverflowError) as e:
+        logger.debug(f"mvhd: could not read {filename}: {e}")
+    return None
+
+
 def get_created_date(filename: Path, logger):
     """
-    Attempt to extract the creation date from the file's EXIF metadata.
+    Attempt to extract the creation date from the file's metadata.
 
     Args:
         filename (Path): Path to the file to extract metadata from
@@ -844,7 +920,19 @@ def get_created_date(filename: Path, logger):
     Returns:
         datetime.datetime or None: Creation date if found, otherwise None
 
-    This function uses hachoir to parse the file and extract EXIF metadata.
+    Uses hachoir first. For QuickTime/MP4 containers where hachoir finds no
+    plausible date, falls back to reading the `mvhd` atom directly.
+    """
+    created_date = _get_created_date_hachoir(filename, logger)
+    if created_date is None and filename.suffix.lower() in _QUICKTIME_EXTENSIONS:
+        created_date = get_quicktime_created_date(filename, logger)
+    return created_date
+
+
+def _get_created_date_hachoir(filename: Path, logger):
+    """
+    Extract the creation date with hachoir.
+
     It specifically looks for the 'creation_date' metadata field.
     Dates earlier than _MIN_REASONABLE_DATE are rejected as bogus (typically
     QuickTime 1904-epoch zero values) so the caller falls back to FS mtime.
