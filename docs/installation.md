@@ -48,7 +48,7 @@ Every push to `main` also publishes a fresh `op.exe` as a workflow artifact (kep
 A quick sanity check that everything is wired up:
 
 ```bash
-uv run op.py --version       # should print "op.py 2.2.x"
+uv run op.py --version       # should print "op.py 2.3.x"
 uv run op.py --examples      # built-in example list
 uv run op.py --help          # full flag reference
 ```
@@ -58,8 +58,8 @@ uv run op.py --help          # full flag reference
 | Component | Version | Notes |
 |-----------|---------|-------|
 | Python    | 3.13+   | pinned in `.python-version` and `pyproject.toml` |
-| hachoir   | 3.3.0+  | metadata extraction for video/audio/misc |
+| hachoir   | 3.4.0+  | metadata extraction for video/audio/misc |
 | exifread  | 3.5.1+  | fast EXIF for JPEG/TIFF/HEIC/RAW |
-| ruff      | 0.15+   | dev-only — linter/formatter |
-| pytest    | 9.0+    | dev-only — test runner |
-| pyinstaller | 6.20+ | dev-only — Windows `.exe` build |
+| ruff      | 0.17.2+ | dev-only — linter/formatter |
+| pytest    | 9.1.1+  | dev-only — test runner |
+| pyinstaller | 6.22.3+ | dev-only — Windows `.exe` build |
